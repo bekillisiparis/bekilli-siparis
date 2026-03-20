@@ -97,7 +97,6 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 /* ── Login ────────────────────────────────────────── */
 .sip-login-container { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0A0E15 0%, #212631 50%, #373F4E 100%); }
 .sip-login-card { background: var(--sip-bg); border-radius: var(--sip-radius-xl); padding: 48px 36px; width: 100%; max-width: 380px; text-align: center; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-.sip-login-icon { font-size: 48px; margin-bottom: 16px; }
 .sip-login-title { font-size: 24px; font-weight: 700; color: var(--sip-text); margin-bottom: 4px; }
 .sip-login-sub { font-size: 15px; color: var(--sip-text-muted); margin-bottom: 32px; }
 .sip-login-form { display: flex; flex-direction: column; gap: 12px; }
@@ -258,6 +257,12 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-muted { color: var(--sip-text-muted); }
 .sip-warn { color: var(--sip-warning-text); }
 .sip-new-badge { display: inline-block; padding: 2px 8px; font-size: 9px; font-weight: 700; background: var(--sip-accent); color: var(--sip-bg); border-radius: 12px; margin-left: 4px; vertical-align: middle; }
+
+/* Icons — linear style */
+.sip-login-icon { color: var(--sip-accent); margin-bottom: 16px; }
+.sip-login-icon svg { width: 48px; height: 48px; }
+.sip-theme-toggle svg { display: block; }
+.sip-cr-del svg { display: block; }
 
 /* ── Toast ─────────────────────────────────────────── */
 .sip-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 24px; background: var(--sip-text); color: var(--sip-bg); border-radius: 20px; font-size: 14px; font-weight: 500; z-index: 1000; animation: sip-toast-in 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
