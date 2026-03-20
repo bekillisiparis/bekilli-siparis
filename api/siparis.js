@@ -117,7 +117,19 @@ async function gistWriteFile(gistId, filename, data) {
 // PUBLIC Gist'te (KAT_GIST) müşteri bilgisi ASLA bulunmaz
 async function authenticatePin(pin) {
   const hash = await hashPin(pin);
-  const musteriler = await gistReadFile(SIP_GIST, 'musteriler.json');
+  console.log('Auth: SIP_GIST:', JSON.stringify(SIP_GIST), 'TOKEN başı:', TOKEN?.slice(0,10));
+  const testRes = await fetch(`${GIST_API}/${SIP_GIST}`, { headers: gistHeaders });
+  console.log('Auth: Gist status:', testRes.status);
+  if (!testRes.ok) {
+    const txt = await testRes.text().catch(() => '');
+    console.error('Auth: Gist body:', txt.slice(0, 300));
+    throw new Error(`SIP_GIST okunamadı: ${testRes.status}`);
+  }
+  const gist = await testRes.json();
+  console.log('Auth: Dosyalar:', Object.keys(gist.files || {}));
+  const file = gist.files?.['musteriler.json'];
+  if (!file) throw new Error('musteriler.json bulunamadı. Dosyalar: ' + Object.keys(gist.files || {}).join(', '));
+  const musteriler = JSON.parse(file.content);
   if (!musteriler?.length) return null;
   return musteriler.find(m => m.pinHash === hash) || null;
 }
@@ -259,7 +271,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.query.katalog) {
     return res.status(200).json({
       durum: 'aktif',
-      versiyon: '1.2.1',
+      versiyon: '1.2.2',
       zaman: new Date().toISOString(),
     });
   }
@@ -302,7 +314,7 @@ export default async function handler(req, res) {
     musteri = await authenticatePin(pin);
   } catch (err) {
     console.error('Auth hatası:', err.message);
-    return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası' });
+    return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası', debug: err.message });
   }
 
   if (!musteri) {
