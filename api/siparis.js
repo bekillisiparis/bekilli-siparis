@@ -259,7 +259,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.query.katalog) {
     return res.status(200).json({
       durum: 'aktif',
-      versiyon: '1.1.0',
+      versiyon: '1.2.0',
       zaman: new Date().toISOString(),
     });
   }
