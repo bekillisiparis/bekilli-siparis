@@ -117,19 +117,7 @@ async function gistWriteFile(gistId, filename, data) {
 // PUBLIC Gist'te (KAT_GIST) müşteri bilgisi ASLA bulunmaz
 async function authenticatePin(pin) {
   const hash = await hashPin(pin);
-  console.log('Auth: SIP_GIST:', JSON.stringify(SIP_GIST), 'TOKEN başı:', TOKEN?.slice(0,10));
-  const testRes = await fetch(`${GIST_API}/${SIP_GIST}`, { headers: gistHeaders });
-  console.log('Auth: Gist status:', testRes.status);
-  if (!testRes.ok) {
-    const txt = await testRes.text().catch(() => '');
-    console.error('Auth: Gist body:', txt.slice(0, 300));
-    throw new Error(`SIP_GIST okunamadı: ${testRes.status}`);
-  }
-  const gist = await testRes.json();
-  console.log('Auth: Dosyalar:', Object.keys(gist.files || {}));
-  const file = gist.files?.['musteriler.json'];
-  if (!file) throw new Error('musteriler.json bulunamadı. Dosyalar: ' + Object.keys(gist.files || {}).join(', '));
-  const musteriler = JSON.parse(file.content);
+  const musteriler = await gistReadFile(SIP_GIST, 'musteriler.json');
   if (!musteriler?.length) return null;
   return musteriler.find(m => m.pinHash === hash) || null;
 }
@@ -271,7 +259,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.query.katalog) {
     return res.status(200).json({
       durum: 'aktif',
-      versiyon: '1.2.2',
+      versiyon: '1.3.0',
       zaman: new Date().toISOString(),
     });
   }
@@ -281,27 +269,14 @@ export default async function handler(req, res) {
   // Rate limit geçerli (brute force koruması yok, sadece istek limiti)
   if (req.method === 'GET' && req.query.katalog === '1') {
     try {
-      console.log('Katalog istek - KAT_GIST:', JSON.stringify(KAT_GIST), 'uzunluk:', KAT_GIST?.length);
-      const url = `${GIST_API}/${KAT_GIST}`;
-      console.log('Fetch URL:', url);
-      const testRes = await fetch(url, { headers: publicHeaders });
-      console.log('GitHub yanıt status:', testRes.status);
-      if (!testRes.ok) {
-        const txt = await testRes.text().catch(() => '');
-        console.error('GitHub hata body:', txt.slice(0, 200));
-        return res.status(502).json({ hata: 'Katalog yüklenemedi', debug: { status: testRes.status, gistId: KAT_GIST } });
-      }
-      const gist = await testRes.json();
-      const file = gist.files?.['katalog.json'];
-      if (!file) return res.status(404).json({ hata: 'katalog.json bulunamadı', dosyalar: Object.keys(gist.files || {}) });
-      const katalog = JSON.parse(file.content);
+      const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
       return res.status(200).json({
         urunler: katalog?.urunler || [],
         guncelleme: katalog?.guncelleme || null,
       });
     } catch (err) {
-      console.error('Katalog hatası:', err.message, err.stack);
-      return res.status(502).json({ hata: 'Katalog yüklenemedi', mesaj: err.message });
+      console.error('Katalog okuma hatası:', err.message);
+      return res.status(502).json({ hata: 'Katalog yüklenemedi' });
     }
   }
 
@@ -314,7 +289,7 @@ export default async function handler(req, res) {
     musteri = await authenticatePin(pin);
   } catch (err) {
     console.error('Auth hatası:', err.message);
-    return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası', debug: err.message });
+    return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası' });
   }
 
   if (!musteri) {
