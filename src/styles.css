@@ -1,38 +1,38 @@
-/* ── Design Tokens — Claude-inspired warm palette ──── */
+/* ── Design Tokens — Cool blue-gray palette ────────── */
 :root {
-  --sip-accent: #185FA5;
-  --sip-accent-hover: #0C447C;
-  --sip-accent-bg: #E6F1FB;
-  --sip-accent-bg-hover: #B5D4F4;
-  --sip-accent-bg-light: #F0F6FD;
+  --sip-accent: #3B82F6;
+  --sip-accent-hover: #2563EB;
+  --sip-accent-bg: #EFF6FF;
+  --sip-accent-bg-hover: #DBEAFE;
+  --sip-accent-bg-light: #F5F8FF;
 
   --sip-bg: #FFFFFF;
-  --sip-bg-page: #F5F4F0;
-  --sip-bg-subtle: #FAF9F5;
-  --sip-bg-input: #F7F6F3;
+  --sip-bg-page: #F0F1F5;
+  --sip-bg-subtle: #F7F8FA;
+  --sip-bg-input: #F0F1F5;
 
-  --sip-text: #2C2C2A;
-  --sip-text-muted: #73726C;
-  --sip-text-dim: #5F5E5A;
-  --sip-text-faint: #B4B2A9;
+  --sip-text: #0A0E15;
+  --sip-text-muted: #667085;
+  --sip-text-dim: #4E576A;
+  --sip-text-faint: #BFC6D4;
 
-  --sip-border: #D3D1C7;
-  --sip-border-light: #E8E6DE;
-  --sip-border-faint: #F1EFE8;
+  --sip-border: #D1D6E0;
+  --sip-border-light: #E0E4EB;
+  --sip-border-faint: #F0F1F5;
 
-  --sip-success-text: #27500A;
-  --sip-success-bg: #EAF3DE;
-  --sip-danger: #E24B4A;
-  --sip-danger-text: #791F1F;
-  --sip-danger-bg: #FCEBEB;
-  --sip-danger-border: #F7C1C1;
-  --sip-danger-bg-hover: #FDF5F5;
-  --sip-warning-text: #854F0B;
-  --sip-warning-bg: #FAEEDA;
-  --sip-info-text: #0C447C;
-  --sip-info-bg: #E6F1FB;
-  --sip-disabled: #888780;
-  --sip-disabled-bg: #F1EFE8;
+  --sip-success-text: #15803D;
+  --sip-success-bg: #ECFDF5;
+  --sip-danger: #EF4444;
+  --sip-danger-text: #991B1B;
+  --sip-danger-bg: #FEF2F2;
+  --sip-danger-border: #FECACA;
+  --sip-danger-bg-hover: #FFF5F5;
+  --sip-warning-text: #A16207;
+  --sip-warning-bg: #FFFBEB;
+  --sip-info-text: #1D4ED8;
+  --sip-info-bg: #EFF6FF;
+  --sip-disabled: #667085;
+  --sip-disabled-bg: #F0F1F5;
 
   --sip-radius-sm: 4px;
   --sip-radius: 6px;
@@ -46,46 +46,46 @@
 
 /* ── Dark Mode ─────────────────────────────────────── */
 [data-theme="dark"] {
-  --sip-accent: #85B7EB;
-  --sip-accent-hover: #B5D4F4;
-  --sip-accent-bg: rgba(24, 95, 165, 0.2);
-  --sip-accent-bg-hover: rgba(24, 95, 165, 0.3);
-  --sip-accent-bg-light: rgba(24, 95, 165, 0.1);
+  --sip-accent: #60A5FA;
+  --sip-accent-hover: #93C5FD;
+  --sip-accent-bg: rgba(59, 130, 246, 0.15);
+  --sip-accent-bg-hover: rgba(59, 130, 246, 0.25);
+  --sip-accent-bg-light: rgba(59, 130, 246, 0.08);
 
-  --sip-bg: #2C2C2A;
-  --sip-bg-page: #1E1E1C;
-  --sip-bg-subtle: #333331;
-  --sip-bg-input: #3A3A37;
+  --sip-bg: #212631;
+  --sip-bg-page: #0A0E15;
+  --sip-bg-subtle: #373F4E;
+  --sip-bg-input: #373F4E;
 
-  --sip-text: #FAF9F5;
-  --sip-text-muted: #B4B2A9;
-  --sip-text-dim: #D3D1C7;
-  --sip-text-faint: #5F5E5A;
+  --sip-text: #FFFFFF;
+  --sip-text-muted: #BFC6D4;
+  --sip-text-dim: #D1D6E0;
+  --sip-text-faint: #4E576A;
 
-  --sip-border: #4A4A46;
-  --sip-border-light: #3E3E3A;
-  --sip-border-faint: #353533;
+  --sip-border: #373F4E;
+  --sip-border-light: #2A3040;
+  --sip-border-faint: #212631;
 
-  --sip-success-text: #C0DD97;
-  --sip-success-bg: rgba(39, 80, 10, 0.25);
-  --sip-danger: #F09595;
-  --sip-danger-text: #F7C1C1;
-  --sip-danger-bg: rgba(121, 31, 31, 0.25);
-  --sip-danger-border: rgba(121, 31, 31, 0.4);
-  --sip-danger-bg-hover: rgba(121, 31, 31, 0.15);
-  --sip-warning-text: #FAC775;
-  --sip-warning-bg: rgba(133, 79, 11, 0.25);
-  --sip-info-text: #B5D4F4;
-  --sip-info-bg: rgba(12, 68, 124, 0.25);
-  --sip-disabled: #73726C;
-  --sip-disabled-bg: #3A3A37;
+  --sip-success-text: #86EFAC;
+  --sip-success-bg: rgba(21, 128, 61, 0.2);
+  --sip-danger: #FCA5A5;
+  --sip-danger-text: #FECACA;
+  --sip-danger-bg: rgba(239, 68, 68, 0.15);
+  --sip-danger-border: rgba(239, 68, 68, 0.3);
+  --sip-danger-bg-hover: rgba(239, 68, 68, 0.1);
+  --sip-warning-text: #FCD34D;
+  --sip-warning-bg: rgba(161, 98, 7, 0.2);
+  --sip-info-text: #93C5FD;
+  --sip-info-bg: rgba(29, 78, 216, 0.2);
+  --sip-disabled: #667085;
+  --sip-disabled-bg: #373F4E;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoothing: antialiased; font-family: var(--sip-font); }
 
 /* ── Login ────────────────────────────────────────── */
-.sip-login-container { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+.sip-login-container { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0A0E15 0%, #212631 50%, #373F4E 100%); }
 .sip-login-card { background: var(--sip-bg); border-radius: var(--sip-radius-xl); padding: 48px 36px; width: 100%; max-width: 380px; text-align: center; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
 .sip-login-icon { font-size: 48px; margin-bottom: 16px; }
 .sip-login-title { font-size: 24px; font-weight: 700; color: var(--sip-text); margin-bottom: 4px; }
@@ -260,7 +260,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-sc-edit-input { background: var(--sip-bg-input); color: var(--sip-text); }
 [data-theme="dark"] .sip-ac-dropdown { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
 [data-theme="dark"] .sip-toast { background: var(--sip-bg-subtle); color: var(--sip-text); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-[data-theme="dark"] .sip-send-btn { background: #378ADD; color: #fff; }
+[data-theme="dark"] .sip-send-btn { background: #3B82F6; color: #fff; }
 
 /* Theme toggle button */
 .sip-theme-toggle { padding: 4px 8px; font-size: 14px; background: none; border: 1px solid var(--sip-border); border-radius: var(--sip-radius); cursor: pointer; line-height: 1; display: flex; align-items: center; }
