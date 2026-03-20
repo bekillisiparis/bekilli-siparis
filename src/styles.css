@@ -44,6 +44,43 @@
   --sip-mono: 'SF Mono', ui-monospace, Menlo, monospace;
 }
 
+/* ── Dark Mode ─────────────────────────────────────── */
+[data-theme="dark"] {
+  --sip-accent: #85B7EB;
+  --sip-accent-hover: #B5D4F4;
+  --sip-accent-bg: rgba(24, 95, 165, 0.2);
+  --sip-accent-bg-hover: rgba(24, 95, 165, 0.3);
+  --sip-accent-bg-light: rgba(24, 95, 165, 0.1);
+
+  --sip-bg: #2C2C2A;
+  --sip-bg-page: #1E1E1C;
+  --sip-bg-subtle: #333331;
+  --sip-bg-input: #3A3A37;
+
+  --sip-text: #FAF9F5;
+  --sip-text-muted: #B4B2A9;
+  --sip-text-dim: #D3D1C7;
+  --sip-text-faint: #5F5E5A;
+
+  --sip-border: #4A4A46;
+  --sip-border-light: #3E3E3A;
+  --sip-border-faint: #353533;
+
+  --sip-success-text: #C0DD97;
+  --sip-success-bg: rgba(39, 80, 10, 0.25);
+  --sip-danger: #F09595;
+  --sip-danger-text: #F7C1C1;
+  --sip-danger-bg: rgba(121, 31, 31, 0.25);
+  --sip-danger-border: rgba(121, 31, 31, 0.4);
+  --sip-danger-bg-hover: rgba(121, 31, 31, 0.15);
+  --sip-warning-text: #FAC775;
+  --sip-warning-bg: rgba(133, 79, 11, 0.25);
+  --sip-info-text: #B5D4F4;
+  --sip-info-bg: rgba(12, 68, 124, 0.25);
+  --sip-disabled: #73726C;
+  --sip-disabled-bg: #3A3A37;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoothing: antialiased; font-family: var(--sip-font); }
 
@@ -60,7 +97,9 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-pin-btn:hover:not(:disabled) { opacity: 0.85; }
 .sip-pin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sip-login-error { color: var(--sip-danger); font-size: 14px; margin-top: 12px; font-weight: 500; }
-.sip-login-card .sip-lang-toggle { position: absolute; top: 16px; right: 16px; }
+.sip-login-card .sip-lang-toggle { position: static; }
+[data-theme="dark"] .sip-login-card { background: var(--sip-bg); box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+[data-theme="dark"] .sip-pin-input { background: var(--sip-bg-input); color: var(--sip-text); }
 
 /* ── Lang Toggle ──────────────────────────────────── */
 .sip-lang-toggle { padding: 4px 10px; font-size: 12px; font-weight: 700; background: var(--sip-bg-page); border: 1px solid var(--sip-border); border-radius: var(--sip-radius); color: var(--sip-text); cursor: pointer; font-family: inherit; letter-spacing: 1px; }
@@ -211,6 +250,21 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 /* ── Toast ─────────────────────────────────────────── */
 .sip-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 24px; background: var(--sip-text); color: var(--sip-bg); border-radius: 10px; font-size: 14px; font-weight: 500; z-index: 1000; animation: sip-toast-in 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 @keyframes sip-toast-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* ── Dark Mode element overrides ───────────────────── */
+[data-theme="dark"] .sip-search,
+[data-theme="dark"] .sip-ac-input,
+[data-theme="dark"] .sip-nr-input,
+[data-theme="dark"] .sip-nr-adet,
+[data-theme="dark"] .sip-cr-adet,
+[data-theme="dark"] .sip-sc-edit-input { background: var(--sip-bg-input); color: var(--sip-text); }
+[data-theme="dark"] .sip-ac-dropdown { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+[data-theme="dark"] .sip-toast { background: var(--sip-bg-subtle); color: var(--sip-text); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+[data-theme="dark"] .sip-send-btn { background: #378ADD; color: #fff; }
+
+/* Theme toggle button */
+.sip-theme-toggle { padding: 4px 8px; font-size: 14px; background: none; border: 1px solid var(--sip-border); border-radius: var(--sip-radius); cursor: pointer; line-height: 1; display: flex; align-items: center; }
+.sip-theme-toggle:hover { background: var(--sip-bg-subtle); }
 
 /* ── Responsive — Tablet (<900px) ─────────────────── */
 @media (max-width: 900px) {
