@@ -68,21 +68,29 @@ const gistHeaders = {
   'X-GitHub-Api-Version': '2022-11-28',
   'User-Agent': 'BekilliSiparis/1.0',
 };
+// PUBLIC Gist için auth gereksiz (token sorunu olsa bile çalışır)
+const publicHeaders = {
+  'Accept': 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2022-11-28',
+  'User-Agent': 'BekilliSiparis/1.0',
+};
 
-async function gistRead(gistId) {
-  const res = await fetch(`${GIST_API}/${gistId}`, { headers: gistHeaders });
+async function gistRead(gistId, isPublic = false) {
+  const hdrs = isPublic ? publicHeaders : gistHeaders;
+  const res = await fetch(`${GIST_API}/${gistId}`, { headers: hdrs });
   if (!res.ok) throw new Error(`Gist okuma hatası: ${res.status}`);
   return res.json();
 }
 
-async function gistReadFile(gistId, filename) {
-  const gist = await gistRead(gistId);
+async function gistReadFile(gistId, filename, isPublic = false) {
+  const gist = await gistRead(gistId, isPublic);
   const file = gist.files?.[filename];
   if (!file) return null;
   // Truncated dosya kontrolü (1MB+ dosyalar)
   let content = file.content;
   if (file.truncated && file.raw_url) {
-    const raw = await fetch(file.raw_url, { headers: gistHeaders });
+    const hdrs = isPublic ? publicHeaders : gistHeaders;
+    const raw = await fetch(file.raw_url, { headers: hdrs });
     if (!raw.ok) throw new Error(`Gist raw okuma hatası: ${raw.status}`);
     content = await raw.text();
   }
@@ -261,7 +269,7 @@ export default async function handler(req, res) {
   // Rate limit geçerli (brute force koruması yok, sadece istek limiti)
   if (req.method === 'GET' && req.query.katalog === '1') {
     try {
-      const katalog = await gistReadFile(KAT_GIST, 'katalog.json');
+      const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
       return res.status(200).json({
         urunler: katalog?.urunler || [],
         guncelleme: katalog?.guncelleme || null,
