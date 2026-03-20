@@ -182,7 +182,7 @@ function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onL
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
           <LangToggle lang={lang} setLang={setLang} />
         </div>
-        <div className="sip-login-icon">📦</div>
+        <div className="sip-login-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
         <h1 className="sip-login-title">{t.pin_title}</h1>
         <p className="sip-login-sub">{t.pin_sub}</p>
         <div className="sip-login-form">
@@ -582,7 +582,7 @@ function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, on
                 <div className="sip-cr-toplam">
                   {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '—'}
                 </div>
-                <button className="sip-cr-del" onClick={() => onSil(item.id)}>✕</button>
+                <button className="sip-cr-del" onClick={() => onSil(item.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
               </div>
             );
           })}
@@ -757,7 +757,11 @@ function HesabimTab({ t }) {
 function ThemeToggle({ theme, toggleTheme }) {
   return (
     <button className="sip-theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
-      {theme === 'dark' ? '☀️' : '🌙'}
+      {theme === 'dark' ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      )}
     </button>
   );
 }
