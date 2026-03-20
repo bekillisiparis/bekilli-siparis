@@ -36,7 +36,8 @@
 
   --sip-glass: none;
   --sip-glass-border: #D1D6E0;
-  --sip-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --sip-shadow: 0 0 1px rgba(0,0,0,0.06), 0 1px 1px -0.5px rgba(0,0,0,0.06), 0 3px 3px -1.5px rgba(0,0,0,0.06), 0 6px 6px -3px rgba(0,0,0,0.06), 0 12px 12px -6px rgba(0,0,0,0.06), 0 24px 24px -12px rgba(0,0,0,0.06);
+  --sip-shadow-sm: 0 0 1px rgba(0,0,0,0.06), 0 1px 1px -0.5px rgba(0,0,0,0.06), 0 3px 3px -1.5px rgba(0,0,0,0.06);
   --sip-glow: none;
 
   --sip-radius-sm: 8px;
@@ -87,7 +88,8 @@
 
   --sip-glass: blur(20px) saturate(1.2);
   --sip-glass-border: rgba(255, 255, 255, 0.1);
-  --sip-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --sip-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255,255,255,0.05);
+  --sip-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 1px rgba(255,255,255,0.05);
   --sip-glow: 0 0 20px rgba(59, 130, 246, 0.15);
 }
 
@@ -102,7 +104,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-login-form { display: flex; flex-direction: column; gap: 12px; }
 .sip-pin-input { width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 12px; border: 2px solid var(--sip-border); border-radius: 16px; outline: none; font-family: inherit; transition: border-color 0.2s; }
 .sip-pin-input:focus { border-color: var(--sip-accent); }
-.sip-pin-btn { padding: 14px 24px; font-size: 16px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 24px; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
+.sip-pin-btn { padding: 14px 24px; font-size: 16px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 24px; cursor: pointer; font-family: inherit; transition: all 0.2s; box-shadow: var(--sip-shadow); }
 .sip-pin-btn:hover:not(:disabled) { opacity: 0.85; }
 .sip-pin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sip-login-error { color: var(--sip-danger); font-size: 14px; margin-top: 12px; font-weight: 500; }
@@ -111,7 +113,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-pin-input { background: var(--sip-bg-input); color: var(--sip-text); }
 
 /* ── Lang Toggle ──────────────────────────────────── */
-.sip-lang-toggle { padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--sip-bg-page); border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text); cursor: pointer; font-family: inherit; letter-spacing: 1px; }
+.sip-lang-toggle { padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--sip-bg-page); border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text); cursor: pointer; font-family: inherit; letter-spacing: 1px; box-shadow: var(--sip-shadow-sm); }
 
 /* ── App Shell ────────────────────────────────────── */
 .sip-app { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -122,7 +124,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-header-logo { font-size: 15px; font-weight: 700; color: var(--sip-text); }
 .sip-header-customer { font-size: 13px; color: var(--sip-text-muted); }
 .sip-header-right { display: flex; align-items: center; gap: 8px; }
-.sip-logout-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text-muted); cursor: pointer; font-family: inherit; }
+.sip-logout-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text-muted); cursor: pointer; font-family: inherit; box-shadow: var(--sip-shadow-sm); }
 .sip-logout-btn:hover { background: var(--sip-danger-bg-hover); color: var(--sip-danger); border-color: var(--sip-danger); }
 
 /* ── 3 Panel Body ─────────────────────────────────── */
@@ -158,7 +160,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-tabs { display: flex; gap: 4px; padding: 6px; background: var(--sip-bg-input); border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
 .sip-tab { flex: 1; padding: 10px 16px; font-size: 13px; font-weight: 600; border: none; background: none; color: var(--sip-text-muted); cursor: pointer; border-radius: 20px; font-family: inherit; position: relative; transition: all 0.2s; }
 .sip-tab:hover { color: var(--sip-text-dim); background: var(--sip-bg-subtle); }
-.sip-tab.active { color: var(--sip-bg); background: var(--sip-accent); font-weight: 600; }
+.sip-tab.active { color: var(--sip-bg); background: var(--sip-accent); font-weight: 600; box-shadow: var(--sip-shadow); }
 .sip-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; font-size: 10px; font-weight: 600; background: var(--sip-danger); color: var(--sip-bg); border-radius: 12px; margin-left: 4px; }
 .sip-tab-content { flex: 1; overflow-y: auto; }
 
@@ -212,7 +214,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-summary { margin-top: auto; border-top: 1px solid var(--sip-border-light); padding: 10px 12px; flex-shrink: 0; background: var(--sip-bg-subtle); }
 .sip-sum-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
 .sip-sum-total { font-weight: 600; font-size: 15px; padding: 6px 0 2px; border-top: 1px solid var(--sip-border); margin-top: 4px; }
-.sip-send-btn { width: 100%; padding: 14px 24px; font-size: 16px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 24px; cursor: pointer; font-family: inherit; margin-top: 8px; transition: opacity 0.15s; }
+.sip-send-btn { width: 100%; padding: 14px 24px; font-size: 16px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 24px; cursor: pointer; font-family: inherit; margin-top: 8px; transition: all 0.2s; box-shadow: var(--sip-shadow); }
 .sip-send-btn:hover:not(:disabled) { opacity: 0.88; }
 .sip-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -240,14 +242,14 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-karsilanan { color: var(--sip-accent); font-weight: 600; }
 .sip-sc-not { font-size: 12px; color: var(--sip-text-muted); font-style: italic; }
 .sip-sc-actions { margin-top: 8px; display: flex; gap: 6px; }
-.sip-sc-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; border-radius: 20px; cursor: pointer; font-family: inherit; border: 1px solid var(--sip-border); background: var(--sip-bg); }
+.sip-sc-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; border-radius: 20px; cursor: pointer; font-family: inherit; border: 1px solid var(--sip-border); background: var(--sip-bg); box-shadow: var(--sip-shadow-sm); }
 .sip-sc-btn.edit { color: var(--sip-accent); }
 .sip-sc-btn.del { color: var(--sip-danger); border-color: var(--sip-danger-border); }
 .sip-sc-btn.del:hover { background: var(--sip-danger-bg); }
 .sip-sc-edit { display: flex; gap: 4px; align-items: center; }
 .sip-sc-edit-input { width: 60px; padding: 4px; font-size: 13px; border: 1px solid var(--sip-accent); border-radius: var(--sip-radius-sm); text-align: center; outline: none; font-family: inherit; }
-.sip-sc-edit-save { padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 20px; cursor: pointer; font-family: inherit; }
-.sip-sc-edit-cancel { padding: 6px 16px; font-size: 12px; background: none; border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text-muted); cursor: pointer; font-family: inherit; }
+.sip-sc-edit-save { padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 20px; cursor: pointer; font-family: inherit; box-shadow: var(--sip-shadow-sm); }
+.sip-sc-edit-cancel { padding: 6px 16px; font-size: 12px; background: none; border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text-muted); cursor: pointer; font-family: inherit; box-shadow: var(--sip-shadow-sm); }
 
 /* ── Hesabım Tab ──────────────────────────────────── */
 .sip-hesabim-tab { padding: 10px 12px; }
@@ -307,7 +309,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-sgroup-label.status-iptal { background: rgba(255,255,255,0.04); color: #4E576A; }
 
 /* Theme toggle button */
-.sip-theme-toggle { padding: 6px 10px; font-size: 14px; background: none; border: 1px solid var(--sip-border); border-radius: 20px; cursor: pointer; line-height: 1; display: flex; align-items: center; }
+.sip-theme-toggle { padding: 6px 10px; font-size: 14px; background: none; border: 1px solid var(--sip-border); border-radius: 20px; cursor: pointer; line-height: 1; display: flex; align-items: center; box-shadow: var(--sip-shadow-sm); }
 .sip-theme-toggle:hover { background: var(--sip-bg-subtle); }
 
 /* ── Responsive — Tablet (<900px) ─────────────────── */
