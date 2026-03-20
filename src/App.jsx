@@ -97,6 +97,7 @@ const KATEGORILER = ['Nozzle', 'Injector', 'Plunger', 'Element', 'Pump', 'Valve'
 // ── App ─────────────────────────────────────────────
 export default function App() {
   const [lang, setLang] = useState(() => localStorage.getItem('sip_lang') || 'tr');
+  const [theme, setTheme] = useState(() => localStorage.getItem('sip_theme') || 'light');
   const [pin, setPin] = useState(() => sessionStorage.getItem('sip_pin') || '');
   const [musteri, setMusteri] = useState(null);
   const [katalog, setKatalog] = useState([]);
@@ -107,9 +108,16 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
 
   const t = LANG[lang];
+  const toggleTheme = useCallback(() => {
+    setTheme(t => t === 'dark' ? 'light' : 'dark');
+  }, []);
 
   useEffect(() => { fetch(API).catch(() => {}); }, []);
   useEffect(() => { localStorage.setItem('sip_lang', lang); }, [lang]);
+  useEffect(() => {
+    localStorage.setItem('sip_theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
   useEffect(() => { if (pin && !loggedIn) doLogin(pin); }, []); // eslint-disable-line
 
   async function doLogin(p) {
@@ -148,12 +156,12 @@ export default function App() {
   }
 
   if (!loggedIn) {
-    return <LoginScreen t={t} lang={lang} setLang={setLang} loading={loading} error={error} onLogin={doLogin} />;
+    return <LoginScreen t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} loading={loading} error={error} onLogin={doLogin} />;
   }
 
   return (
     <MainApp
-      t={t} lang={lang} setLang={setLang} pin={pin}
+      t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} pin={pin}
       musteri={musteri} katalog={katalog} fiyatlar={fiyatlar}
       siparisler={siparisler} refreshSiparisler={refreshSiparisler}
       onLogout={doLogout}
@@ -162,7 +170,7 @@ export default function App() {
 }
 
 // ── Login ───────────────────────────────────────────
-function LoginScreen({ t, lang, setLang, loading, error, onLogin }) {
+function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onLogin }) {
   const [input, setInput] = useState('');
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -170,7 +178,10 @@ function LoginScreen({ t, lang, setLang, loading, error, onLogin }) {
   return (
     <div className="sip-login-container">
       <div className="sip-login-card">
-        <LangToggle lang={lang} setLang={setLang} />
+        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 }}>
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+          <LangToggle lang={lang} setLang={setLang} />
+        </div>
         <div className="sip-login-icon">📦</div>
         <h1 className="sip-login-title">{t.pin_title}</h1>
         <p className="sip-login-sub">{t.pin_sub}</p>
@@ -195,7 +206,7 @@ function LoginScreen({ t, lang, setLang, loading, error, onLogin }) {
 }
 
 // ── MainApp — 3 Panel Desktop ───────────────────────
-function MainApp({ t, lang, setLang, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, onLogout }) {
+function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, onLogout }) {
   const [tab, setTab] = useState('siparis');
   const [sepet, setSepet] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -317,6 +328,7 @@ function MainApp({ t, lang, setLang, pin, musteri, katalog, fiyatlar, siparisler
           <div className="sip-header-customer">{musteri.ad}</div>
         </div>
         <div className="sip-header-right">
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
           <LangToggle lang={lang} setLang={setLang} />
           <button onClick={onLogout} className="sip-logout-btn">{t.cikis}</button>
         </div>
@@ -738,6 +750,15 @@ function HesabimTab({ t }) {
     <div className="sip-hesabim-tab">
       <div className="sip-empty">{t.hesabim_yakin}</div>
     </div>
+  );
+}
+
+// ── Theme Toggle ────────────────────────────────────
+function ThemeToggle({ theme, toggleTheme }) {
+  return (
+    <button className="sip-theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+      {theme === 'dark' ? '☀️' : '🌙'}
+    </button>
   );
 }
 
