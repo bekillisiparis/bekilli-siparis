@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 // ── API ─────────────────────────────────────────────
 const API = '/api/siparis';
@@ -168,7 +168,7 @@ export default function App() {
     try {
       const data = await apiCall(API, pin);
       setSiparisler(data.siparisler || []);
-    } catch { /* sessiz */ }
+    } catch (err) { console.warn('Sipariş yenileme hatası:', err.message); }
   }
 
   if (!loggedIn) {
