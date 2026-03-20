@@ -259,7 +259,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.query.katalog) {
     return res.status(200).json({
       durum: 'aktif',
-      versiyon: '1.2.0',
+      versiyon: '1.2.1',
       zaman: new Date().toISOString(),
     });
   }
@@ -269,14 +269,27 @@ export default async function handler(req, res) {
   // Rate limit geçerli (brute force koruması yok, sadece istek limiti)
   if (req.method === 'GET' && req.query.katalog === '1') {
     try {
-      const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
+      console.log('Katalog istek - KAT_GIST:', JSON.stringify(KAT_GIST), 'uzunluk:', KAT_GIST?.length);
+      const url = `${GIST_API}/${KAT_GIST}`;
+      console.log('Fetch URL:', url);
+      const testRes = await fetch(url, { headers: publicHeaders });
+      console.log('GitHub yanıt status:', testRes.status);
+      if (!testRes.ok) {
+        const txt = await testRes.text().catch(() => '');
+        console.error('GitHub hata body:', txt.slice(0, 200));
+        return res.status(502).json({ hata: 'Katalog yüklenemedi', debug: { status: testRes.status, gistId: KAT_GIST } });
+      }
+      const gist = await testRes.json();
+      const file = gist.files?.['katalog.json'];
+      if (!file) return res.status(404).json({ hata: 'katalog.json bulunamadı', dosyalar: Object.keys(gist.files || {}) });
+      const katalog = JSON.parse(file.content);
       return res.status(200).json({
         urunler: katalog?.urunler || [],
         guncelleme: katalog?.guncelleme || null,
       });
     } catch (err) {
-      console.error('Katalog okuma hatası:', err.message);
-      return res.status(502).json({ hata: 'Katalog yüklenemedi' });
+      console.error('Katalog hatası:', err.message, err.stack);
+      return res.status(502).json({ hata: 'Katalog yüklenemedi', mesaj: err.message });
     }
   }
 
