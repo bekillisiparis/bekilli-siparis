@@ -1,188 +1,751 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #f5f5f7; color: #1d1d1f; -webkit-font-smoothing: antialiased; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
-/* ── Login ────────────────────────────────────────── */
-.sip-login-container { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
-.sip-login-card { background: #fff; border-radius: 20px; padding: 48px 36px; width: 100%; max-width: 380px; text-align: center; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-.sip-login-icon { font-size: 48px; margin-bottom: 16px; }
-.sip-login-title { font-size: 24px; font-weight: 700; color: #1d1d1f; margin-bottom: 4px; }
-.sip-login-sub { font-size: 15px; color: #86868b; margin-bottom: 32px; }
-.sip-login-form { display: flex; flex-direction: column; gap: 12px; }
-.sip-pin-input { width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 12px; border: 2px solid #d2d2d7; border-radius: 12px; outline: none; font-family: inherit; transition: border-color 0.2s; }
-.sip-pin-input:focus { border-color: #0071e3; }
-.sip-pin-btn { padding: 16px; font-size: 17px; font-weight: 600; background: #0071e3; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
-.sip-pin-btn:hover:not(:disabled) { opacity: 0.85; }
-.sip-pin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.sip-login-error { color: #ff3b30; font-size: 14px; margin-top: 12px; font-weight: 500; }
-.sip-login-card .sip-lang-toggle { position: absolute; top: 16px; right: 16px; }
+// ── API ─────────────────────────────────────────────
+const API = '/api/siparis';
 
-/* ── Lang Toggle ──────────────────────────────────── */
-.sip-lang-toggle { padding: 4px 10px; font-size: 12px; font-weight: 700; background: #f5f5f7; border: 1px solid #d2d2d7; border-radius: 6px; color: #1d1d1f; cursor: pointer; font-family: inherit; letter-spacing: 1px; }
-
-/* ── App Shell ────────────────────────────────────── */
-.sip-app { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-
-/* ── Header ───────────────────────────────────────── */
-.sip-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e5e5ea; flex-shrink: 0; }
-.sip-header-left { display: flex; align-items: baseline; gap: 12px; }
-.sip-header-logo { font-size: 15px; font-weight: 700; color: #1d1d1f; }
-.sip-header-customer { font-size: 13px; color: #86868b; }
-.sip-header-right { display: flex; align-items: center; gap: 8px; }
-.sip-logout-btn { padding: 5px 12px; font-size: 12px; font-weight: 500; background: none; border: 1px solid #d2d2d7; border-radius: 6px; color: #86868b; cursor: pointer; font-family: inherit; }
-.sip-logout-btn:hover { background: #fff5f5; color: #ff3b30; border-color: #ff3b30; }
-
-/* ── 3 Panel Body ─────────────────────────────────── */
-.sip-body { display: grid; grid-template-columns: 120px 220px minmax(0, 1fr); flex: 1; overflow: hidden; }
-
-/* ── Sol: Filtreler ───────────────────────────────── */
-.sip-left { background: #fff; border-right: 1px solid #e5e5ea; padding: 8px 0; overflow-y: auto; }
-.sip-filter-section { padding: 0 6px; margin-bottom: 4px; }
-.sip-filter-title { font-size: 9px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 6px 4px; }
-.sip-filter-item { padding: 4px 6px; font-size: 11px; color: #555; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sip-filter-item:hover:not(.active) { background: #f5f5f7; }
-.sip-filter-item.active { background: #e8f0fe; color: #0071e3; font-weight: 600; }
-
-/* ── Orta: Katalog ────────────────────────────────── */
-.sip-mid { background: #fafafa; border-right: 1px solid #e5e5ea; padding: 8px; overflow-y: auto; display: flex; flex-direction: column; }
-.sip-search { width: 100%; padding: 7px 10px; font-size: 12px; border: 1px solid #d2d2d7; border-radius: 6px; background: #fff; outline: none; margin-bottom: 8px; font-family: inherit; color: #1d1d1f; }
-.sip-search:focus { border-color: #0071e3; }
-.sip-katalog-list { flex: 1; overflow-y: auto; }
-.sip-supplier-group { margin-bottom: 10px; }
-.sip-supplier-label { font-size: 10px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px; padding: 4px 0; border-bottom: 1px solid #e5e5ea; margin-bottom: 2px; }
-.sip-katalog-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px; border-radius: 6px; cursor: pointer; gap: 4px; transition: background 0.15s; }
-.sip-katalog-item:hover { background: #e8f0fe; }
-.sip-katalog-item:active { background: #d0e2fc; }
-.sip-ki-info { flex: 1; min-width: 0; }
-.sip-ki-name { font-size: 12px; font-weight: 500; color: #1d1d1f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sip-ki-code { font-size: 9px; color: #86868b; font-family: 'SF Mono', Menlo, monospace; }
-.sip-ki-stock { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; flex-shrink: 0; }
-.sip-ki-stock.in { background: #e8f5e9; color: #2e7d32; }
-.sip-ki-stock.out { background: #fce4ec; color: #c62828; }
-
-/* ── Sağ: Sipariş Paneli ─────────────────────────── */
-.sip-right { background: #fff; display: flex; flex-direction: column; overflow: hidden; }
-.sip-tabs { display: flex; border-bottom: 1px solid #e5e5ea; flex-shrink: 0; }
-.sip-tab { flex: 1; padding: 10px 8px; font-size: 13px; font-weight: 500; border: none; background: none; color: #86868b; cursor: pointer; border-bottom: 2px solid transparent; font-family: inherit; position: relative; transition: color 0.15s; }
-.sip-tab:hover { color: #555; }
-.sip-tab.active { color: #0071e3; border-bottom-color: #0071e3; font-weight: 600; }
-.sip-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; font-size: 10px; font-weight: 600; background: #ff3b30; color: #fff; border-radius: 9px; margin-left: 4px; }
-.sip-tab-content { flex: 1; overflow-y: auto; }
-
-/* ── Sepet Tab ────────────────────────────────────── */
-.sip-sepet-tab { display: flex; flex-direction: column; height: 100%; }
-
-/* Autocomplete */
-.sip-ac-wrap { position: relative; padding: 10px 12px 0; flex-shrink: 0; }
-.sip-ac-input { width: 100%; padding: 8px 12px; font-size: 13px; border: 1px solid #d2d2d7; border-radius: 8px; outline: none; font-family: inherit; background: #fafafa; color: #1d1d1f; }
-.sip-ac-input:focus { border-color: #0071e3; background: #fff; }
-.sip-ac-dropdown { position: absolute; left: 12px; right: 12px; top: 100%; background: #fff; border: 1px solid #d2d2d7; border-top: none; border-radius: 0 0 8px 8px; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-height: 240px; overflow-y: auto; }
-.sip-ac-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; font-size: 12px; cursor: pointer; gap: 8px; }
-.sip-ac-item:hover { background: #f0f4ff; }
-.sip-ac-item span:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sip-ac-stock { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 500; flex-shrink: 0; }
-.sip-ac-stock.in { color: #2e7d32; }
-.sip-ac-stock.out { color: #c62828; }
-
-/* Cart header */
-.sip-cart-header { display: grid; grid-template-columns: 50px 1fr 80px 90px 28px; gap: 4px; padding: 8px 12px 4px; font-size: 9px; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid #e5e5ea; flex-shrink: 0; }
-.sip-ch-birim, .sip-ch-toplam { text-align: right; }
-
-/* Cart row */
-.sip-cart-row { display: grid; grid-template-columns: 50px 1fr 80px 90px 28px; gap: 4px; padding: 6px 12px; font-size: 13px; align-items: center; border-bottom: 1px solid #f0f0f2; }
-.sip-cart-row:hover { background: #fafafa; }
-.sip-cr-adet { width: 44px; padding: 4px; font-size: 13px; text-align: center; border: 1px solid #d2d2d7; border-radius: 4px; font-family: inherit; outline: none; color: #0071e3; font-weight: 600; }
-.sip-cr-adet:focus { border-color: #0071e3; }
-.sip-cr-urun { min-width: 0; overflow: hidden; }
-.sip-cr-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sip-cr-code { font-size: 10px; color: #86868b; font-family: 'SF Mono', Menlo, monospace; }
-.sip-cr-birim { text-align: right; font-size: 12px; color: #555; }
-.sip-cr-toplam { text-align: right; font-weight: 600; font-size: 13px; }
-.sip-cr-del { background: none; border: none; color: #ccc; cursor: pointer; font-size: 14px; padding: 4px; text-align: center; font-family: inherit; }
-.sip-cr-del:hover { color: #ff3b30; }
-
-/* Inline new row */
-.sip-new-row { display: grid; grid-template-columns: 50px 1fr 28px; gap: 4px; padding: 6px 12px; background: #f9f9fb; border-top: 1px dashed #d2d2d7; flex-shrink: 0; position: relative; }
-.sip-nr-adet { width: 44px; padding: 4px; font-size: 12px; text-align: center; border: 1px solid #d2d2d7; border-radius: 4px; font-family: inherit; outline: none; background: #fff; color: #1d1d1f; }
-.sip-nr-adet:focus { border-color: #0071e3; }
-.sip-nr-input-wrap { position: relative; }
-.sip-nr-input { width: 100%; padding: 5px 8px; font-size: 12px; border: 1px solid #d2d2d7; border-radius: 4px; font-family: inherit; outline: none; background: #fff; color: #1d1d1f; }
-.sip-nr-input:focus { border-color: #0071e3; }
-.sip-nr-dropdown { left: 0; right: 0; top: 100%; border-radius: 0 0 6px 6px; }
-.sip-nr-add { background: none; border: none; color: #0071e3; cursor: pointer; font-size: 20px; font-weight: 600; padding: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; }
-.sip-nr-add:disabled { color: #ccc; cursor: not-allowed; }
-.sip-nr-add:hover:not(:disabled) { color: #005bb5; }
-
-/* Summary + Send */
-.sip-summary { margin-top: auto; border-top: 1px solid #e5e5ea; padding: 10px 12px; flex-shrink: 0; background: #fafafa; }
-.sip-sum-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
-.sip-sum-total { font-weight: 600; font-size: 15px; padding: 6px 0 2px; border-top: 1px solid #d2d2d7; margin-top: 4px; }
-.sip-send-btn { width: 100%; padding: 12px; font-size: 15px; font-weight: 600; background: #0071e3; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; margin-top: 8px; transition: opacity 0.15s; }
-.sip-send-btn:hover:not(:disabled) { opacity: 0.88; }
-.sip-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ── Takip Tab ────────────────────────────────────── */
-.sip-takip-tab { padding: 10px 12px; }
-.sip-sgroup { margin-bottom: 14px; }
-.sip-sgroup-label { font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }
-.sip-sgroup-label.status-beklemede { background: #fff3e0; color: #e65100; }
-.sip-sgroup-label.status-kismi { background: #e3f2fd; color: #1565c0; }
-.sip-sgroup-label.status-tamamlandi { background: #e8f5e9; color: #2e7d32; }
-.sip-sgroup-label.status-iptal { background: #f5f5f5; color: #9e9e9e; }
-
-.sip-scard { background: #fff; border-radius: 8px; border: 1px solid #e5e5ea; padding: 10px 12px; margin-bottom: 6px; }
-.sip-scard.status-tamamlandi { opacity: 0.7; }
-.sip-scard.status-iptal { opacity: 0.5; }
-.sip-sc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.sip-sc-info { flex: 1; min-width: 0; }
-.sip-sc-name { font-size: 13px; font-weight: 600; }
-.sip-sc-code { font-size: 10px; color: #86868b; font-family: 'SF Mono', Menlo, monospace; margin-top: 1px; }
-.sip-sc-right { text-align: right; flex-shrink: 0; }
-.sip-sc-tarih { font-size: 11px; color: #86868b; }
-.sip-sc-fiyat { font-size: 13px; font-weight: 600; display: block; margin-top: 1px; }
-.sip-sc-bottom { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sip-sc-adet { font-size: 13px; }
-.sip-karsilanan { color: #0071e3; font-weight: 600; }
-.sip-sc-not { font-size: 12px; color: #86868b; font-style: italic; }
-.sip-sc-actions { margin-top: 8px; display: flex; gap: 6px; }
-.sip-sc-btn { padding: 4px 12px; font-size: 12px; font-weight: 500; border-radius: 5px; cursor: pointer; font-family: inherit; border: 1px solid #d2d2d7; background: #fff; }
-.sip-sc-btn.edit { color: #0071e3; }
-.sip-sc-btn.del { color: #ff3b30; border-color: #ffcdd2; }
-.sip-sc-btn.del:hover { background: #fce4ec; }
-.sip-sc-edit { display: flex; gap: 4px; align-items: center; }
-.sip-sc-edit-input { width: 60px; padding: 4px; font-size: 13px; border: 1px solid #0071e3; border-radius: 4px; text-align: center; outline: none; font-family: inherit; }
-.sip-sc-edit-save { padding: 4px 10px; font-size: 12px; font-weight: 600; background: #0071e3; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-family: inherit; }
-.sip-sc-edit-cancel { padding: 4px 8px; font-size: 12px; background: none; border: 1px solid #d2d2d7; border-radius: 4px; color: #86868b; cursor: pointer; font-family: inherit; }
-
-/* ── Hesabım Tab ──────────────────────────────────── */
-.sip-hesabim-tab { padding: 10px 12px; }
-
-/* ── Shared ───────────────────────────────────────── */
-.sip-empty { text-align: center; padding: 40px 20px; color: #86868b; font-size: 14px; }
-.sip-muted { color: #86868b; }
-.sip-warn { color: #e65100; }
-.sip-new-badge { display: inline-block; padding: 1px 5px; font-size: 9px; font-weight: 700; background: #0071e3; color: #fff; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
-
-/* ── Toast ─────────────────────────────────────────── */
-.sip-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 24px; background: #1d1d1f; color: #fff; border-radius: 10px; font-size: 14px; font-weight: 500; z-index: 1000; animation: sip-toast-in 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-@keyframes sip-toast-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-
-/* ── Responsive — Tablet (<900px) ─────────────────── */
-@media (max-width: 900px) {
-  .sip-body { grid-template-columns: 0px 180px minmax(0, 1fr); }
-  .sip-left { display: none; }
+async function apiCall(endpoint, pin, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (pin) headers['X-Siparis-PIN'] = pin;
+  const opts = body
+    ? { method: 'POST', headers, body: JSON.stringify(body) }
+    : { method: 'GET', headers };
+  const res = await fetch(endpoint, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.hata || 'Bir hata oluştu');
+  return data;
 }
 
-/* ── Responsive — Mobile (<640px) ─────────────────── */
-@media (max-width: 640px) {
-  .sip-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .sip-left { display: none; }
-  .sip-mid { display: none; }
-  .sip-right { grid-column: 1; }
-  .sip-header-logo { font-size: 14px; }
-  .sip-header-customer { font-size: 12px; }
-  .sip-login-card { padding: 36px 24px; }
-  .sip-pin-input { font-size: 20px; letter-spacing: 8px; }
-  .sip-cart-header { grid-template-columns: 42px 1fr 60px 70px 24px; }
-  .sip-cart-row { grid-template-columns: 42px 1fr 60px 70px 24px; padding: 5px 8px; }
-  .sip-cr-adet { width: 36px; font-size: 12px; }
+// ── Fiyat helper ────────────────────────────────────
+// v2 format: { fiyatlar: { "kod": { fiyat, doviz } } }
+// v1 / boş: {} veya { "kod": { fiyat, doviz } }
+function extractFiyatlar(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  if (raw.fiyatlar && typeof raw.fiyatlar === 'object') return raw.fiyatlar;
+  return raw;
+}
+
+// ── Dil ─────────────────────────────────────────────
+const LANG = {
+  tr: {
+    pin_title: 'Bekilli Group', pin_sub: 'Sipariş Sistemi',
+    pin_placeholder: '6 haneli PIN giriniz', pin_btn: 'Giriş',
+    pin_error: 'Geçersiz PIN', yukleniyor: 'Yükleniyor...',
+    cikis: 'Çıkış', hata: 'Hata', tekrar: 'Tekrar dene',
+    baglanamadi: 'Sunucuya bağlanılamadı',
+    // Filtreler
+    tumu: 'Tümü', kategori: 'Kategori', marka: 'Marka', supplier: 'Supplier',
+    ara: 'Ürün ara...',
+    stokta: 'Stokta', stok_yok: 'Yok', fiyat_sorun: 'Fiyat sorulacak',
+    // Sağ panel
+    siparis: 'Sipariş', takip: 'Takip', hesabim: 'Hesabım',
+    sepet_bos: 'Henüz ürün eklenmedi',
+    adet: 'Adet', urun: 'Ürün', birim: 'Birim', toplam: 'Toplam',
+    satirlar: 'kalem', topAdet: 'adet',
+    fiyatli_toplam: 'Fiyatı belli', fiyat_sorun_kalem: 'Fiyat sorulacak',
+    gonder: 'Sipariş Gönder', gonderiliyor: 'Gönderiliyor...',
+    gonderildi: 'sipariş gönderildi',
+    sepetten_sil: 'Sil', adet_gir: 'Ad.',
+    ekle_placeholder: 'Parça no veya ürün adı yazın...',
+    // Takip
+    beklemede: 'Beklemede', kismi: 'Kısmi',
+    tamamlandi: 'Tamamlandı', iptal_durum: 'İptal',
+    karsilanan: 'karşılandı', bos_siparis: 'Henüz sipariş yok',
+    sil: 'Sil', guncelle: 'Güncelle', iptal_btn: 'İptal',
+    // Yeni ürün
+    yeni_urun: 'Yeni ürün ekle',
+    parca_no: 'Parça No', supplier_label: 'Üretici',
+    urun_ad: 'Ürün Adı', not_placeholder: 'Not (isteğe bağlı)',
+    // Hesabım
+    hesabim_yakin: 'Hesabım yakında aktif olacak.',
+    bakiye: 'Bakiye', faturalar: 'Faturalar', odemeler: 'Ödemeler',
+    bos_katalog: 'Katalog boş',
+  },
+  en: {
+    pin_title: 'Bekilli Group', pin_sub: 'Order System',
+    pin_placeholder: 'Enter 6-digit PIN', pin_btn: 'Login',
+    pin_error: 'Invalid PIN', yukleniyor: 'Loading...',
+    cikis: 'Logout', hata: 'Error', tekrar: 'Try again',
+    baglanamadi: 'Cannot connect to server',
+    tumu: 'All', kategori: 'Category', marka: 'Brand', supplier: 'Supplier',
+    ara: 'Search products...',
+    stokta: 'In Stock', stok_yok: 'N/A', fiyat_sorun: 'Price on request',
+    siparis: 'Order', takip: 'Tracking', hesabim: 'Account',
+    sepet_bos: 'No items added yet',
+    adet: 'Qty', urun: 'Product', birim: 'Unit', toplam: 'Total',
+    satirlar: 'items', topAdet: 'pcs',
+    fiyatli_toplam: 'Priced total', fiyat_sorun_kalem: 'Price on request',
+    gonder: 'Send Order', gonderiliyor: 'Sending...',
+    gonderildi: 'orders sent',
+    sepetten_sil: 'Remove', adet_gir: 'Qty',
+    ekle_placeholder: 'Type part no or product name...',
+    beklemede: 'Pending', kismi: 'Partial',
+    tamamlandi: 'Completed', iptal_durum: 'Cancelled',
+    karsilanan: 'fulfilled', bos_siparis: 'No orders yet',
+    sil: 'Remove', guncelle: 'Update', iptal_btn: 'Cancel',
+    yeni_urun: 'Add new product',
+    parca_no: 'Part No', supplier_label: 'Manufacturer',
+    urun_ad: 'Product Name', not_placeholder: 'Note (optional)',
+    hesabim_yakin: 'Account section coming soon.',
+    bakiye: 'Balance', faturalar: 'Invoices', odemeler: 'Payments',
+    bos_katalog: 'Catalog is empty',
+  },
+};
+
+const SUPPLIERS = ['AMBAC', 'Delphi', 'Bosch', 'Denso', 'OEM', 'CAT', 'Stanadyne'];
+const KATEGORILER = ['Nozzle', 'Injector', 'Plunger', 'Element', 'Pump', 'Valve', 'Gasket'];
+
+// ── App ─────────────────────────────────────────────
+export default function App() {
+  const [lang, setLang] = useState(() => localStorage.getItem('sip_lang') || 'tr');
+  const [pin, setPin] = useState(() => sessionStorage.getItem('sip_pin') || '');
+  const [musteri, setMusteri] = useState(null);
+  const [katalog, setKatalog] = useState([]);
+  const [fiyatlar, setFiyatlar] = useState({});
+  const [siparisler, setSiparisler] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  const t = LANG[lang];
+
+  useEffect(() => { fetch(API).catch(() => {}); }, []);
+  useEffect(() => { localStorage.setItem('sip_lang', lang); }, [lang]);
+  useEffect(() => { if (pin && !loggedIn) doLogin(pin); }, []); // eslint-disable-line
+
+  async function doLogin(p) {
+    setLoading(true);
+    setError('');
+    try {
+      const [userData, katData] = await Promise.all([
+        apiCall(API, p),
+        apiCall(`${API}?katalog=1`),
+      ]);
+      setMusteri({ id: userData.musteriId, ad: userData.musteriAd });
+      setSiparisler(userData.siparisler || []);
+      setFiyatlar(extractFiyatlar(userData.fiyatlar));
+      setKatalog(katData.urunler || []);
+      sessionStorage.setItem('sip_pin', p);
+      setPin(p);
+      setLoggedIn(true);
+    } catch (err) {
+      setError(err.message);
+      sessionStorage.removeItem('sip_pin');
+    }
+    setLoading(false);
+  }
+
+  function doLogout() {
+    sessionStorage.removeItem('sip_pin');
+    setPin(''); setMusteri(null); setLoggedIn(false);
+    setSiparisler([]); setFiyatlar([]); setKatalog([]);
+  }
+
+  async function refreshSiparisler() {
+    try {
+      const data = await apiCall(API, pin);
+      setSiparisler(data.siparisler || []);
+    } catch (err) { console.warn('Sipariş yenileme hatası:', err.message); }
+  }
+
+  if (!loggedIn) {
+    return <LoginScreen t={t} lang={lang} setLang={setLang} loading={loading} error={error} onLogin={doLogin} />;
+  }
+
+  return (
+    <MainApp
+      t={t} lang={lang} setLang={setLang} pin={pin}
+      musteri={musteri} katalog={katalog} fiyatlar={fiyatlar}
+      siparisler={siparisler} refreshSiparisler={refreshSiparisler}
+      onLogout={doLogout}
+    />
+  );
+}
+
+// ── Login ───────────────────────────────────────────
+function LoginScreen({ t, lang, setLang, loading, error, onLogin }) {
+  const [input, setInput] = useState('');
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  return (
+    <div className="sip-login-container">
+      <div className="sip-login-card">
+        <LangToggle lang={lang} setLang={setLang} />
+        <div className="sip-login-icon">📦</div>
+        <h1 className="sip-login-title">{t.pin_title}</h1>
+        <p className="sip-login-sub">{t.pin_sub}</p>
+        <div className="sip-login-form">
+          <input
+            ref={inputRef} type="password" inputMode="numeric" maxLength={6}
+            value={input} onChange={e => setInput(e.target.value.replace(/\D/g, ''))}
+            placeholder={t.pin_placeholder} className="sip-pin-input" autoComplete="off"
+            onKeyDown={e => { if (e.key === 'Enter' && input.length === 6) onLogin(input); }}
+          />
+          <button
+            onClick={() => input.length === 6 && onLogin(input)}
+            disabled={input.length !== 6 || loading} className="sip-pin-btn"
+          >
+            {loading ? t.yukleniyor : t.pin_btn}
+          </button>
+        </div>
+        {error && <p className="sip-login-error">{t.pin_error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── MainApp — 3 Panel Desktop ───────────────────────
+function MainApp({ t, lang, setLang, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, onLogout }) {
+  const [tab, setTab] = useState('siparis');
+  const [sepet, setSepet] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState('');
+
+  // Filters
+  const [katFilter, setKatFilter] = useState('');
+  const [markaFilter, setMarkaFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [search, setSearch] = useState('');
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 2500); }
+
+  // ── Sepete ekle (lokal) ──────────────────────────
+  const sepeteEkle = useCallback((urunKod, urunAd, adet, not, yeniUrunData) => {
+    const qty = parseInt(adet) || 1;
+    setSepet(prev => {
+      const existing = prev.find(s => s.urunKod === urunKod);
+      if (existing) {
+        return prev.map(s => s.urunKod === urunKod ? { ...s, adet: s.adet + qty } : s);
+      }
+      return [...prev, { id: Date.now(), urunKod, urunAd: urunAd || urunKod, adet: qty, not: not || '', yeniUrunData }];
+    });
+    showToast(`${urunKod} eklendi`);
+    if (tab !== 'siparis') setTab('siparis');
+  }, [tab]);
+
+  // ── Sepetten sil ─────────────────────────────────
+  function sepettenSil(id) { setSepet(prev => prev.filter(s => s.id !== id)); }
+
+  // ── Sepet adet güncelle ──────────────────────────
+  function sepetAdetGuncelle(id, yeniAdet) {
+    const a = parseInt(yeniAdet);
+    if (!a || a < 1) return;
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: a } : s));
+  }
+
+  // ── Sipariş gönder (tüm sepet) ──────────────────
+  async function siparisGonder() {
+    if (sepet.length === 0 || busy) return;
+    setBusy(true);
+    let basarili = 0;
+    for (const item of sepet) {
+      try {
+        const body = { islem: 'ekle', urunKod: item.urunKod, urunAd: item.urunAd, adet: item.adet, not: item.not || '' };
+        if (item.yeniUrunData) {
+          body.yeniUrun = true;
+          body.parcaNo = item.yeniUrunData.parcaNo;
+          body.supplier = item.yeniUrunData.supplier;
+          body.kategori = item.yeniUrunData.kategori;
+        }
+        await apiCall(API, pin, body);
+        basarili++;
+      } catch (err) { console.warn('Sipariş gönderme hatası:', err.message); }
+    }
+    await refreshSiparisler();
+    setSepet([]);
+    showToast(`${basarili} ${t.gonderildi}`);
+    setBusy(false);
+    setTab('takip');
+  }
+
+  // ── Takip: sipariş sil ──────────────────────────
+  async function siparisSil(siparisId) {
+    setBusy(true);
+    try {
+      await apiCall(API, pin, { islem: 'sil', siparisId });
+      await refreshSiparisler();
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
+  }
+
+  // ── Takip: sipariş güncelle ─────────────────────
+  async function siparisGuncelle(siparisId, adet) {
+    setBusy(true);
+    try {
+      await apiCall(API, pin, { islem: 'guncelle', siparisId, adet: parseInt(adet) });
+      await refreshSiparisler();
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
+  }
+
+  // ── Derived data ─────────────────────────────────
+  const kategoriler = useMemo(() => [...new Set(katalog.map(u => u.kategori).filter(Boolean))].sort(), [katalog]);
+  const markalar = useMemo(() => [...new Set(katalog.map(u => u.marka).filter(Boolean))].sort(), [katalog]);
+  const suppliers = useMemo(() => [...new Set(katalog.map(u => u.supplier).filter(Boolean))].sort(), [katalog]);
+
+  const filtered = useMemo(() => {
+    let list = katalog;
+    if (search) {
+      const s = search.toLowerCase();
+      list = list.filter(u => u.ad?.toLowerCase().includes(s) || u.kod?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s) || u.marka?.toLowerCase().includes(s));
+    }
+    if (katFilter) list = list.filter(u => u.kategori === katFilter);
+    if (markaFilter) list = list.filter(u => u.marka === markaFilter);
+    if (supplierFilter) list = list.filter(u => u.supplier === supplierFilter);
+    return list;
+  }, [katalog, search, katFilter, markaFilter, supplierFilter]);
+
+  // Supplier grupla
+  const grouped = useMemo(() => {
+    const map = {};
+    filtered.forEach(u => {
+      const key = u.supplier || 'Diğer';
+      if (!map[key]) map[key] = [];
+      map[key].push(u);
+    });
+    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+  const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi').length;
+
+  return (
+    <div className="sip-app">
+      {/* Header */}
+      <header className="sip-header">
+        <div className="sip-header-left">
+          <div className="sip-header-logo">Bekilli Group</div>
+          <div className="sip-header-customer">{musteri.ad}</div>
+        </div>
+        <div className="sip-header-right">
+          <LangToggle lang={lang} setLang={setLang} />
+          <button onClick={onLogout} className="sip-logout-btn">{t.cikis}</button>
+        </div>
+      </header>
+
+      {/* 3 Panel Body */}
+      <div className="sip-body">
+        {/* SOL: Filtreler (ince) */}
+        <aside className="sip-left">
+          <FilterSection title={t.kategori} items={kategoriler} value={katFilter} onChange={setKatFilter} allLabel={t.tumu} />
+          <FilterSection title={t.marka} items={markalar} value={markaFilter} onChange={setMarkaFilter} allLabel={t.tumu} />
+          <FilterSection title={t.supplier} items={suppliers} value={supplierFilter} onChange={setSupplierFilter} allLabel={t.tumu} />
+        </aside>
+
+        {/* ORTA: Katalog (ince) */}
+        <div className="sip-mid">
+          <input
+            type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder={t.ara} className="sip-search"
+          />
+          {grouped.length === 0 ? (
+            <div className="sip-empty">{t.bos_katalog}</div>
+          ) : (
+            <div className="sip-katalog-list">
+              {grouped.map(([supplier, items]) => (
+                <div key={supplier} className="sip-supplier-group">
+                  <div className="sip-supplier-label">{supplier}</div>
+                  {items.map(u => (
+                    <div key={u.kod} className="sip-katalog-item" onClick={() => sepeteEkle(u.kod, u.ad, 1)}>
+                      <div className="sip-ki-info">
+                        <div className="sip-ki-name">{u.ad}</div>
+                        <div className="sip-ki-code">{u.kod}</div>
+                      </div>
+                      <span className={`sip-ki-stock ${u.stokVar ? 'in' : 'out'}`}>
+                        {u.stokVar ? t.stokta : t.stok_yok}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* SAĞ: Sipariş paneli (geniş) */}
+        <div className="sip-right">
+          <div className="sip-tabs">
+            <button className={`sip-tab ${tab === 'siparis' ? 'active' : ''}`} onClick={() => setTab('siparis')}>
+              {t.siparis}
+              {sepet.length > 0 && <span className="sip-badge">{sepet.length}</span>}
+            </button>
+            <button className={`sip-tab ${tab === 'takip' ? 'active' : ''}`} onClick={() => setTab('takip')}>
+              {t.takip}
+              {bekleyenSayisi > 0 && <span className="sip-badge">{bekleyenSayisi}</span>}
+            </button>
+            <button className={`sip-tab ${tab === 'hesabim' ? 'active' : ''}`} onClick={() => setTab('hesabim')}>
+              {t.hesabim}
+            </button>
+          </div>
+
+          <div className="sip-tab-content">
+            {tab === 'siparis' && (
+              <SepetTab
+                t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog}
+                busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle}
+                onEkle={sepeteEkle} onGonder={siparisGonder}
+              />
+            )}
+            {tab === 'takip' && (
+              <TakipTab
+                t={t} siparisler={siparisler} fiyatlar={fiyatlar}
+                busy={busy} onSil={siparisSil} onGuncelle={siparisGuncelle}
+              />
+            )}
+            {tab === 'hesabim' && <HesabimTab t={t} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && <div className="sip-toast">{toast}</div>}
+    </div>
+  );
+}
+
+// ── Filter Section ──────────────────────────────────
+function FilterSection({ title, items, value, onChange, allLabel }) {
+  return (
+    <div className="sip-filter-section">
+      <div className="sip-filter-title">{title}</div>
+      <div
+        className={`sip-filter-item ${!value ? 'active' : ''}`}
+        onClick={() => onChange('')}
+      >{allLabel}</div>
+      {items.map(item => (
+        <div
+          key={item}
+          className={`sip-filter-item ${value === item ? 'active' : ''}`}
+          onClick={() => onChange(value === item ? '' : item)}
+        >{item}</div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sepet Tab (Sağ Panel Ana Sekme) ─────────────────
+function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, onEkle, onGonder }) {
+  // Autocomplete
+  const [acInput, setAcInput] = useState('');
+  const [acOpen, setAcOpen] = useState(false);
+  const acRef = useRef(null);
+
+  const acResults = useMemo(() => {
+    if (!acInput || acInput.length < 2) return [];
+    const s = acInput.toLowerCase();
+    return katalog.filter(u =>
+      u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)
+    ).slice(0, 8);
+  }, [acInput, katalog]);
+
+  function acSelect(urun) {
+    onEkle(urun.kod, urun.ad, 1);
+    setAcInput('');
+    setAcOpen(false);
+  }
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) { if (acRef.current && !acRef.current.contains(e.target)) setAcOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Inline new row
+  const [newAdet, setNewAdet] = useState('1');
+  const [newKod, setNewKod] = useState('');
+  const [newAcOpen, setNewAcOpen] = useState(false);
+  const newRef = useRef(null);
+
+  const newAcResults = useMemo(() => {
+    if (!newKod || newKod.length < 2) return [];
+    const s = newKod.toLowerCase();
+    return katalog.filter(u =>
+      u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)
+    ).slice(0, 6);
+  }, [newKod, katalog]);
+
+  function newRowSelect(urun) {
+    onEkle(urun.kod, urun.ad, parseInt(newAdet) || 1);
+    setNewKod('');
+    setNewAdet('1');
+    setNewAcOpen(false);
+  }
+
+  function newRowAdd() {
+    if (!newKod.trim()) return;
+    // Katalogda yoksa yeni ürün olarak ekle
+    const found = katalog.find(u => u.kod?.toLowerCase() === newKod.trim().toLowerCase());
+    if (found) {
+      onEkle(found.kod, found.ad, parseInt(newAdet) || 1);
+    } else {
+      // Parça no olarak algıla, supplier boş
+      onEkle(newKod.trim().toUpperCase(), newKod.trim().toUpperCase(), parseInt(newAdet) || 1, '', {
+        parcaNo: newKod.trim(), supplier: '', kategori: '',
+      });
+    }
+    setNewKod('');
+    setNewAdet('1');
+    setNewAcOpen(false);
+  }
+
+  useEffect(() => {
+    function handleClick(e) { if (newRef.current && !newRef.current.contains(e.target)) setNewAcOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Toplam hesapla
+  const sepetOzet = useMemo(() => {
+    let fiyatliToplam = 0;
+    let fiyatSorulacak = 0;
+    let topAdet = 0;
+    sepet.forEach(item => {
+      topAdet += item.adet;
+      const f = fiyatlar[item.urunKod];
+      if (f?.fiyat) {
+        fiyatliToplam += item.adet * f.fiyat;
+      } else {
+        fiyatSorulacak++;
+      }
+    });
+    const doviz = Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD';
+    return { fiyatliToplam, fiyatSorulacak, topAdet, doviz };
+  }, [sepet, fiyatlar]);
+
+  return (
+    <div className="sip-sepet-tab">
+      {/* Autocomplete arama */}
+      <div className="sip-ac-wrap" ref={acRef}>
+        <input
+          type="text" value={acInput}
+          onChange={e => { setAcInput(e.target.value); setAcOpen(true); }}
+          onFocus={() => acInput.length >= 2 && setAcOpen(true)}
+          placeholder={t.ekle_placeholder}
+          className="sip-ac-input"
+        />
+        {acOpen && acResults.length > 0 && (
+          <div className="sip-ac-dropdown">
+            {acResults.map(u => (
+              <div key={u.kod} className="sip-ac-item" onClick={() => acSelect(u)}>
+                <span>{u.kod} — {u.ad}</span>
+                <span className={`sip-ac-stock ${u.stokVar ? 'in' : 'out'}`}>
+                  {u.stokVar ? t.stokta : t.stok_yok}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sepet listesi */}
+      {sepet.length === 0 ? (
+        <div className="sip-empty">{t.sepet_bos}</div>
+      ) : (
+        <>
+          <div className="sip-cart-header">
+            <span className="sip-ch-adet">{t.adet}</span>
+            <span className="sip-ch-urun">{t.urun}</span>
+            <span className="sip-ch-birim">{t.birim}</span>
+            <span className="sip-ch-toplam">{t.toplam}</span>
+            <span className="sip-ch-del"></span>
+          </div>
+          {sepet.map(item => {
+            const f = fiyatlar[item.urunKod];
+            const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
+            return (
+              <div key={item.id} className="sip-cart-row">
+                <input
+                  type="number" min="1" max="99999" value={item.adet}
+                  onChange={e => onAdetGuncelle(item.id, e.target.value)}
+                  className="sip-cr-adet"
+                />
+                <div className="sip-cr-urun">
+                  <div className="sip-cr-name">{item.urunAd}</div>
+                  {item.urunKod !== item.urunAd && <div className="sip-cr-code">{item.urunKod}</div>}
+                  {item.yeniUrunData && <span className="sip-new-badge">NEW</span>}
+                </div>
+                <div className="sip-cr-birim">
+                  {f?.fiyat ? `${f.fiyat} ${f.doviz || 'USD'}` : <span className="sip-muted">{t.fiyat_sorun}</span>}
+                </div>
+                <div className="sip-cr-toplam">
+                  {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '—'}
+                </div>
+                <button className="sip-cr-del" onClick={() => onSil(item.id)}>✕</button>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* Inline yeni satır ekleme */}
+      <div className="sip-new-row" ref={newRef}>
+        <input
+          type="number" min="1" max="99999" value={newAdet}
+          onChange={e => setNewAdet(e.target.value)}
+          className="sip-nr-adet" placeholder={t.adet_gir}
+        />
+        <div className="sip-nr-input-wrap">
+          <input
+            type="text" value={newKod}
+            onChange={e => { setNewKod(e.target.value); setNewAcOpen(true); }}
+            onFocus={() => newKod.length >= 2 && setNewAcOpen(true)}
+            onKeyDown={e => { if (e.key === 'Enter') newRowAdd(); }}
+            placeholder={t.ekle_placeholder}
+            className="sip-nr-input"
+          />
+          {newAcOpen && newAcResults.length > 0 && (
+            <div className="sip-ac-dropdown sip-nr-dropdown">
+              {newAcResults.map(u => (
+                <div key={u.kod} className="sip-ac-item" onClick={() => newRowSelect(u)}>
+                  <span>{u.kod} — {u.ad}</span>
+                  <span className={`sip-ac-stock ${u.stokVar ? 'in' : 'out'}`}>
+                    {u.stokVar ? t.stokta : t.stok_yok}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <button className="sip-nr-add" onClick={newRowAdd} disabled={!newKod.trim()}>+</button>
+      </div>
+
+      {/* Toplam + Gönder */}
+      {sepet.length > 0 && (
+        <div className="sip-summary">
+          <div className="sip-sum-row">
+            <span className="sip-muted">{sepet.length} {t.satirlar}, {sepetOzet.topAdet} {t.topAdet}</span>
+          </div>
+          <div className="sip-sum-row">
+            <span className="sip-muted">{t.fiyatli_toplam}</span>
+            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
+          </div>
+          {sepetOzet.fiyatSorulacak > 0 && (
+            <div className="sip-sum-row">
+              <span className="sip-muted">{t.fiyat_sorun_kalem}</span>
+              <span className="sip-warn">{sepetOzet.fiyatSorulacak} {t.satirlar}</span>
+            </div>
+          )}
+          <div className="sip-sum-row sip-sum-total">
+            <span>{t.toplam}</span>
+            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
+          </div>
+          <button className="sip-send-btn" onClick={onGonder} disabled={busy}>
+            {busy ? t.gonderiliyor : t.gonder}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Takip Tab ───────────────────────────────────────
+function TakipTab({ t, siparisler, fiyatlar, busy, onSil, onGuncelle }) {
+  const beklemede = siparisler.filter(s => s.durum === 'beklemede');
+  const kismi = siparisler.filter(s => s.durum === 'kismi');
+  const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
+  const iptal = siparisler.filter(s => s.durum === 'iptal');
+
+  if (siparisler.length === 0) {
+    return <div className="sip-empty">{t.bos_siparis}</div>;
+  }
+
+  return (
+    <div className="sip-takip-tab">
+      {beklemede.length > 0 && (
+        <SiparisGroup label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
+      )}
+      {kismi.length > 0 && (
+        <SiparisGroup label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
+      )}
+      {tamamlandi.length > 0 && (
+        <SiparisGroup label={t.tamamlandi} status="tamamlandi" items={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} />
+      )}
+      {iptal.length > 0 && (
+        <SiparisGroup label={t.iptal_durum} status="iptal" items={iptal} t={t} fiyatlar={fiyatlar} busy={busy} />
+      )}
+    </div>
+  );
+}
+
+function SiparisGroup({ label, status, items, t, fiyatlar, busy, onSil, onGuncelle }) {
+  return (
+    <div className="sip-sgroup">
+      <div className={`sip-sgroup-label status-${status}`}>{label} ({items.length})</div>
+      {items.map(s => (
+        <SiparisCard key={s.id} s={s} t={t} fiyat={fiyatlar[s.urunKod]} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
+      ))}
+    </div>
+  );
+}
+
+function SiparisCard({ s, t, fiyat, busy, onSil, onGuncelle }) {
+  const [editMode, setEditMode] = useState(false);
+  const [yeniAdet, setYeniAdet] = useState(String(s.adet));
+  const tarih = new Date(s.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+  function handleGuncelle() {
+    if (parseInt(yeniAdet) !== s.adet && parseInt(yeniAdet) >= 1) {
+      onGuncelle?.(s.id, yeniAdet);
+    }
+    setEditMode(false);
+  }
+
+  return (
+    <div className={`sip-scard status-${s.durum}`}>
+      <div className="sip-sc-top">
+        <div className="sip-sc-info">
+          <div className="sip-sc-name">{s.urunAd}</div>
+          <div className="sip-sc-code">{s.urunKod}</div>
+        </div>
+        <div className="sip-sc-right">
+          <span className="sip-sc-tarih">{tarih}</span>
+          {fiyat && <span className="sip-sc-fiyat">{fiyat.fiyat} {fiyat.doviz}</span>}
+        </div>
+      </div>
+      <div className="sip-sc-bottom">
+        <span className="sip-sc-adet">
+          {s.karsilanan > 0 && <span className="sip-karsilanan">{s.karsilanan}/</span>}
+          {s.adet} {t.adet}
+          {s.karsilanan > 0 && <span className="sip-muted"> ({s.karsilanan} {t.karsilanan})</span>}
+        </span>
+        {s.not && <div className="sip-sc-not">{s.not}</div>}
+        {s.yeniUrun && <span className="sip-new-badge">NEW</span>}
+      </div>
+      {s.durum === 'beklemede' && s.karsilanan === 0 && onSil && (
+        <div className="sip-sc-actions">
+          {editMode ? (
+            <div className="sip-sc-edit">
+              <input type="number" min="1" max="99999" value={yeniAdet}
+                onChange={e => setYeniAdet(e.target.value)} className="sip-sc-edit-input" />
+              <button onClick={handleGuncelle} disabled={busy} className="sip-sc-edit-save">{t.guncelle}</button>
+              <button onClick={() => setEditMode(false)} className="sip-sc-edit-cancel">{t.iptal_btn}</button>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => { setYeniAdet(String(s.adet)); setEditMode(true); }} disabled={busy} className="sip-sc-btn edit">{t.adet}</button>
+              <button onClick={() => onSil(s.id)} disabled={busy} className="sip-sc-btn del">{t.sil}</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Hesabım Tab (placeholder) ───────────────────────
+function HesabimTab({ t }) {
+  return (
+    <div className="sip-hesabim-tab">
+      <div className="sip-empty">{t.hesabim_yakin}</div>
+    </div>
+  );
+}
+
+// ── Lang Toggle ─────────────────────────────────────
+function LangToggle({ lang, setLang }) {
+  return (
+    <button className="sip-lang-toggle" onClick={() => setLang(l => l === 'tr' ? 'en' : 'tr')}>
+      {lang === 'tr' ? 'EN' : 'TR'}
+    </button>
+  );
 }
