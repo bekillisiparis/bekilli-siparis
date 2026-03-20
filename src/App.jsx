@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 // ── API ─────────────────────────────────────────────
 const API = '/api/siparis';
@@ -15,91 +15,79 @@ async function apiCall(endpoint, pin, body) {
   return data;
 }
 
+// ── Fiyat helper ────────────────────────────────────
+// v2 format: { fiyatlar: { "kod": { fiyat, doviz } } }
+// v1 / boş: {} veya { "kod": { fiyat, doviz } }
+function extractFiyatlar(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  if (raw.fiyatlar && typeof raw.fiyatlar === 'object') return raw.fiyatlar;
+  return raw;
+}
+
 // ── Dil ─────────────────────────────────────────────
 const LANG = {
   tr: {
-    pin_title: 'Bekilli Group',
-    pin_sub: 'Sipariş Sistemi',
-    pin_placeholder: '6 haneli PIN giriniz',
-    pin_btn: 'Giriş',
-    pin_error: 'Geçersiz PIN',
-    katalog: 'Katalog',
-    siparislerim: 'Siparişlerim',
-    ara: 'Ürün ara...',
-    tumu: 'Tümü',
-    stokta: 'Stokta',
-    stok_yok: 'Stokta yok',
-    fiyat_sorun: 'Fiyat sorulacak',
-    adet: 'Adet',
-    not_placeholder: 'Not (isteğe bağlı)',
-    ekle: 'Siparişe Ekle',
-    eklendi: 'Eklendi!',
-    beklemede: 'Beklemede',
-    kismi: 'Kısmi',
-    tamamlandi: 'Tamamlandı',
-    iptal: 'İptal',
-    sil: 'Sil',
-    bos_siparis: 'Henüz sipariş yok',
-    bos_katalog: 'Katalog boş',
-    karsilanan: 'karşılandı',
-    yukleniyor: 'Yükleniyor...',
-    cikis: 'Çıkış',
-    yeni_urun: 'Katalogda yok mu?',
-    yeni_urun_title: 'Yeni Ürün Talebi',
-    parca_no: 'Parça No',
-    supplier: 'Üretici',
-    urun_ad: 'Ürün Adı',
-    kategori: 'Kategori',
-    iptal_btn: 'İptal',
-    gonder: 'Gönder',
-    hata: 'Hata',
-    tekrar: 'Tekrar dene',
+    pin_title: 'Bekilli Group', pin_sub: 'Sipariş Sistemi',
+    pin_placeholder: '6 haneli PIN giriniz', pin_btn: 'Giriş',
+    pin_error: 'Geçersiz PIN', yukleniyor: 'Yükleniyor...',
+    cikis: 'Çıkış', hata: 'Hata', tekrar: 'Tekrar dene',
     baglanamadi: 'Sunucuya bağlanılamadı',
-    siparis_ozet: 'sipariş',
-    guncelle: 'Güncelle',
-    adet_gir: 'Yeni adet',
+    // Filtreler
+    tumu: 'Tümü', kategori: 'Kategori', marka: 'Marka', supplier: 'Supplier',
+    ara: 'Ürün ara...',
+    stokta: 'Stokta', stok_yok: 'Yok', fiyat_sorun: 'Fiyat sorulacak',
+    // Sağ panel
+    siparis: 'Sipariş', takip: 'Takip', hesabim: 'Hesabım',
+    sepet_bos: 'Henüz ürün eklenmedi',
+    adet: 'Adet', urun: 'Ürün', birim: 'Birim', toplam: 'Toplam',
+    satirlar: 'kalem', topAdet: 'adet',
+    fiyatli_toplam: 'Fiyatı belli', fiyat_sorun_kalem: 'Fiyat sorulacak',
+    gonder: 'Sipariş Gönder', gonderiliyor: 'Gönderiliyor...',
+    gonderildi: 'sipariş gönderildi',
+    sepetten_sil: 'Sil', adet_gir: 'Ad.',
+    ekle_placeholder: 'Parça no veya ürün adı yazın...',
+    // Takip
+    beklemede: 'Beklemede', kismi: 'Kısmi',
+    tamamlandi: 'Tamamlandı', iptal_durum: 'İptal',
+    karsilanan: 'karşılandı', bos_siparis: 'Henüz sipariş yok',
+    sil: 'Sil', guncelle: 'Güncelle', iptal_btn: 'İptal',
+    // Yeni ürün
+    yeni_urun: 'Yeni ürün ekle',
+    parca_no: 'Parça No', supplier_label: 'Üretici',
+    urun_ad: 'Ürün Adı', not_placeholder: 'Not (isteğe bağlı)',
+    // Hesabım
+    hesabim_yakin: 'Hesabım yakında aktif olacak.',
+    bakiye: 'Bakiye', faturalar: 'Faturalar', odemeler: 'Ödemeler',
+    bos_katalog: 'Katalog boş',
   },
   en: {
-    pin_title: 'Bekilli Group',
-    pin_sub: 'Order System',
-    pin_placeholder: 'Enter 6-digit PIN',
-    pin_btn: 'Login',
-    pin_error: 'Invalid PIN',
-    katalog: 'Catalog',
-    siparislerim: 'My Orders',
-    ara: 'Search products...',
-    tumu: 'All',
-    stokta: 'In Stock',
-    stok_yok: 'Out of Stock',
-    fiyat_sorun: 'Price on request',
-    adet: 'Qty',
-    not_placeholder: 'Note (optional)',
-    ekle: 'Add to Order',
-    eklendi: 'Added!',
-    beklemede: 'Pending',
-    kismi: 'Partial',
-    tamamlandi: 'Completed',
-    iptal: 'Cancelled',
-    sil: 'Remove',
-    bos_siparis: 'No orders yet',
-    bos_katalog: 'Catalog is empty',
-    karsilanan: 'fulfilled',
-    yukleniyor: 'Loading...',
-    cikis: 'Logout',
-    yeni_urun: 'Not in catalog?',
-    yeni_urun_title: 'New Product Request',
-    parca_no: 'Part No',
-    supplier: 'Manufacturer',
-    urun_ad: 'Product Name',
-    kategori: 'Category',
-    iptal_btn: 'Cancel',
-    gonder: 'Submit',
-    hata: 'Error',
-    tekrar: 'Try again',
+    pin_title: 'Bekilli Group', pin_sub: 'Order System',
+    pin_placeholder: 'Enter 6-digit PIN', pin_btn: 'Login',
+    pin_error: 'Invalid PIN', yukleniyor: 'Loading...',
+    cikis: 'Logout', hata: 'Error', tekrar: 'Try again',
     baglanamadi: 'Cannot connect to server',
-    siparis_ozet: 'order(s)',
-    guncelle: 'Update',
-    adet_gir: 'New qty',
+    tumu: 'All', kategori: 'Category', marka: 'Brand', supplier: 'Supplier',
+    ara: 'Search products...',
+    stokta: 'In Stock', stok_yok: 'N/A', fiyat_sorun: 'Price on request',
+    siparis: 'Order', takip: 'Tracking', hesabim: 'Account',
+    sepet_bos: 'No items added yet',
+    adet: 'Qty', urun: 'Product', birim: 'Unit', toplam: 'Total',
+    satirlar: 'items', topAdet: 'pcs',
+    fiyatli_toplam: 'Priced total', fiyat_sorun_kalem: 'Price on request',
+    gonder: 'Send Order', gonderiliyor: 'Sending...',
+    gonderildi: 'orders sent',
+    sepetten_sil: 'Remove', adet_gir: 'Qty',
+    ekle_placeholder: 'Type part no or product name...',
+    beklemede: 'Pending', kismi: 'Partial',
+    tamamlandi: 'Completed', iptal_durum: 'Cancelled',
+    karsilanan: 'fulfilled', bos_siparis: 'No orders yet',
+    sil: 'Remove', guncelle: 'Update', iptal_btn: 'Cancel',
+    yeni_urun: 'Add new product',
+    parca_no: 'Part No', supplier_label: 'Manufacturer',
+    urun_ad: 'Product Name', not_placeholder: 'Note (optional)',
+    hesabim_yakin: 'Account section coming soon.',
+    bakiye: 'Balance', faturalar: 'Invoices', odemeler: 'Payments',
+    bos_katalog: 'Catalog is empty',
   },
 };
 
@@ -120,16 +108,9 @@ export default function App() {
 
   const t = LANG[lang];
 
-  // Cold start ön ısıtma
   useEffect(() => { fetch(API).catch(() => {}); }, []);
-
-  // Dil kaydet
   useEffect(() => { localStorage.setItem('sip_lang', lang); }, [lang]);
-
-  // Otomatik giriş (sessionStorage'da PIN varsa)
-  useEffect(() => {
-    if (pin && !loggedIn) doLogin(pin);
-  }, []); // eslint-disable-line
+  useEffect(() => { if (pin && !loggedIn) doLogin(pin); }, []); // eslint-disable-line
 
   async function doLogin(p) {
     setLoading(true);
@@ -141,7 +122,7 @@ export default function App() {
       ]);
       setMusteri({ id: userData.musteriId, ad: userData.musteriAd });
       setSiparisler(userData.siparisler || []);
-      setFiyatlar(userData.fiyatlar || {});
+      setFiyatlar(extractFiyatlar(userData.fiyatlar));
       setKatalog(katData.urunler || []);
       sessionStorage.setItem('sip_pin', p);
       setPin(p);
@@ -155,15 +136,10 @@ export default function App() {
 
   function doLogout() {
     sessionStorage.removeItem('sip_pin');
-    setPin('');
-    setMusteri(null);
-    setLoggedIn(false);
-    setSiparisler([]);
-    setFiyatlar({});
-    setKatalog([]);
+    setPin(''); setMusteri(null); setLoggedIn(false);
+    setSiparisler([]); setFiyatlar([]); setKatalog([]);
   }
 
-  // Sipariş verilerini yenile
   async function refreshSiparisler() {
     try {
       const data = await apiCall(API, pin);
@@ -189,423 +165,578 @@ export default function App() {
 function LoginScreen({ t, lang, setLang, loading, error, onLogin }) {
   const [input, setInput] = useState('');
   const inputRef = useRef(null);
-
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (input.length === 6) onLogin(input);
-  }
-
   return (
-    <div className="login-container">
-      <div className="login-card">
+    <div className="sip-login-container">
+      <div className="sip-login-card">
         <LangToggle lang={lang} setLang={setLang} />
-        <div className="login-icon">📦</div>
-        <h1 className="login-title">{t.pin_title}</h1>
-        <p className="login-sub">{t.pin_sub}</p>
-
-        <form onSubmit={handleSubmit} className="login-form">
+        <div className="sip-login-icon">📦</div>
+        <h1 className="sip-login-title">{t.pin_title}</h1>
+        <p className="sip-login-sub">{t.pin_sub}</p>
+        <div className="sip-login-form">
           <input
-            ref={inputRef}
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={input}
-            onChange={e => setInput(e.target.value.replace(/\D/g, ''))}
-            placeholder={t.pin_placeholder}
-            className="pin-input"
-            autoComplete="off"
+            ref={inputRef} type="password" inputMode="numeric" maxLength={6}
+            value={input} onChange={e => setInput(e.target.value.replace(/\D/g, ''))}
+            placeholder={t.pin_placeholder} className="sip-pin-input" autoComplete="off"
+            onKeyDown={e => { if (e.key === 'Enter' && input.length === 6) onLogin(input); }}
           />
-          <button type="submit" disabled={input.length !== 6 || loading} className="pin-btn">
+          <button
+            onClick={() => input.length === 6 && onLogin(input)}
+            disabled={input.length !== 6 || loading} className="sip-pin-btn"
+          >
             {loading ? t.yukleniyor : t.pin_btn}
           </button>
-        </form>
-
-        {error && <p className="login-error">{t.pin_error}</p>}
+        </div>
+        {error && <p className="sip-login-error">{t.pin_error}</p>}
       </div>
     </div>
   );
 }
 
-// ── Main App ────────────────────────────────────────
+// ── MainApp — 3 Panel Desktop ───────────────────────
 function MainApp({ t, lang, setLang, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, onLogout }) {
-  const [tab, setTab] = useState('katalog');
+  const [tab, setTab] = useState('siparis');
+  const [sepet, setSepet] = useState([]);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
 
-  function showToast(msg) {
-    setToast(msg);
-    setTimeout(() => setToast(''), 2000);
-  }
+  // Filters
+  const [katFilter, setKatFilter] = useState('');
+  const [markaFilter, setMarkaFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [search, setSearch] = useState('');
 
-  async function siparisEkle(urunKod, urunAd, adet, not, yeniUrunData) {
-    setBusy(true);
-    try {
-      const body = { islem: 'ekle', urunKod, urunAd, adet: parseInt(adet), not };
-      if (yeniUrunData) {
-        body.yeniUrun = true;
-        body.parcaNo = yeniUrunData.parcaNo;
-        body.supplier = yeniUrunData.supplier;
-        body.kategori = yeniUrunData.kategori;
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 2500); }
+
+  // ── Sepete ekle (lokal) ──────────────────────────
+  const sepeteEkle = useCallback((urunKod, urunAd, adet, not, yeniUrunData) => {
+    const qty = parseInt(adet) || 1;
+    setSepet(prev => {
+      const existing = prev.find(s => s.urunKod === urunKod);
+      if (existing) {
+        return prev.map(s => s.urunKod === urunKod ? { ...s, adet: s.adet + qty } : s);
       }
-      await apiCall(API, pin, body);
-      await refreshSiparisler();
-      showToast(t.eklendi);
-    } catch (err) {
-      showToast(t.hata + ': ' + err.message);
-    }
-    setBusy(false);
+      return [...prev, { id: Date.now(), urunKod, urunAd: urunAd || urunKod, adet: qty, not: not || '', yeniUrunData }];
+    });
+    showToast(`${urunKod} eklendi`);
+    if (tab !== 'siparis') setTab('siparis');
+  }, [tab]);
+
+  // ── Sepetten sil ─────────────────────────────────
+  function sepettenSil(id) { setSepet(prev => prev.filter(s => s.id !== id)); }
+
+  // ── Sepet adet güncelle ──────────────────────────
+  function sepetAdetGuncelle(id, yeniAdet) {
+    const a = parseInt(yeniAdet);
+    if (!a || a < 1) return;
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: a } : s));
   }
 
+  // ── Sipariş gönder (tüm sepet) ──────────────────
+  async function siparisGonder() {
+    if (sepet.length === 0 || busy) return;
+    setBusy(true);
+    let basarili = 0;
+    for (const item of sepet) {
+      try {
+        const body = { islem: 'ekle', urunKod: item.urunKod, urunAd: item.urunAd, adet: item.adet, not: item.not || '' };
+        if (item.yeniUrunData) {
+          body.yeniUrun = true;
+          body.parcaNo = item.yeniUrunData.parcaNo;
+          body.supplier = item.yeniUrunData.supplier;
+          body.kategori = item.yeniUrunData.kategori;
+        }
+        await apiCall(API, pin, body);
+        basarili++;
+      } catch (err) { console.warn('Sipariş gönderme hatası:', err.message); }
+    }
+    await refreshSiparisler();
+    setSepet([]);
+    showToast(`${basarili} ${t.gonderildi}`);
+    setBusy(false);
+    setTab('takip');
+  }
+
+  // ── Takip: sipariş sil ──────────────────────────
   async function siparisSil(siparisId) {
     setBusy(true);
     try {
       await apiCall(API, pin, { islem: 'sil', siparisId });
       await refreshSiparisler();
-    } catch (err) {
-      showToast(t.hata + ': ' + err.message);
-    }
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
     setBusy(false);
   }
 
+  // ── Takip: sipariş güncelle ─────────────────────
   async function siparisGuncelle(siparisId, adet) {
     setBusy(true);
     try {
       await apiCall(API, pin, { islem: 'guncelle', siparisId, adet: parseInt(adet) });
       await refreshSiparisler();
-    } catch (err) {
-      showToast(t.hata + ': ' + err.message);
-    }
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
     setBusy(false);
   }
 
-  const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi').length;
-
-  return (
-    <div className="app-container">
-      {/* Header */}
-      <header className="app-header">
-        <div className="header-left">
-          <span className="header-icon">📦</span>
-          <div>
-            <div className="header-title">Bekilli Group</div>
-            <div className="header-customer">{musteri.ad}</div>
-          </div>
-        </div>
-        <div className="header-right">
-          <LangToggle lang={lang} setLang={setLang} />
-          <button onClick={onLogout} className="logout-btn">{t.cikis}</button>
-        </div>
-      </header>
-
-      {/* Tabs */}
-      <div className="tab-bar">
-        <button className={`tab-btn ${tab === 'katalog' ? 'active' : ''}`} onClick={() => setTab('katalog')}>
-          {t.katalog}
-        </button>
-        <button className={`tab-btn ${tab === 'siparislerim' ? 'active' : ''}`} onClick={() => setTab('siparislerim')}>
-          {t.siparislerim}
-          {bekleyenSayisi > 0 && <span className="tab-badge">{bekleyenSayisi}</span>}
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="app-content">
-        {tab === 'katalog' && (
-          <KatalogTab t={t} katalog={katalog} fiyatlar={fiyatlar} busy={busy} onSiparisEkle={siparisEkle} />
-        )}
-        {tab === 'siparislerim' && (
-          <SiparislerimTab t={t} siparisler={siparisler} fiyatlar={fiyatlar} busy={busy}
-            onSil={siparisSil} onGuncelle={siparisGuncelle} />
-        )}
-      </div>
-
-      {/* Toast */}
-      {toast && <div className="toast">{toast}</div>}
-    </div>
-  );
-}
-
-// ── Katalog Tab ─────────────────────────────────────
-function KatalogTab({ t, katalog, fiyatlar, busy, onSiparisEkle }) {
-  const [search, setSearch] = useState('');
-  const [katFilter, setKatFilter] = useState('');
-  const [yeniUrunOpen, setYeniUrunOpen] = useState(false);
-
-  const kategoriler = useMemo(() => {
-    const set = new Set(katalog.map(u => u.kategori).filter(Boolean));
-    return [...set].sort();
-  }, [katalog]);
+  // ── Derived data ─────────────────────────────────
+  const kategoriler = useMemo(() => [...new Set(katalog.map(u => u.kategori).filter(Boolean))].sort(), [katalog]);
+  const markalar = useMemo(() => [...new Set(katalog.map(u => u.marka).filter(Boolean))].sort(), [katalog]);
+  const suppliers = useMemo(() => [...new Set(katalog.map(u => u.supplier).filter(Boolean))].sort(), [katalog]);
 
   const filtered = useMemo(() => {
     let list = katalog;
     if (search) {
       const s = search.toLowerCase();
-      list = list.filter(u => u.ad?.toLowerCase().includes(s) || u.kod?.toLowerCase().includes(s) || u.marka?.toLowerCase().includes(s));
+      list = list.filter(u => u.ad?.toLowerCase().includes(s) || u.kod?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s) || u.marka?.toLowerCase().includes(s));
     }
     if (katFilter) list = list.filter(u => u.kategori === katFilter);
+    if (markaFilter) list = list.filter(u => u.marka === markaFilter);
+    if (supplierFilter) list = list.filter(u => u.supplier === supplierFilter);
     return list;
-  }, [katalog, search, katFilter]);
+  }, [katalog, search, katFilter, markaFilter, supplierFilter]);
+
+  // Supplier grupla
+  const grouped = useMemo(() => {
+    const map = {};
+    filtered.forEach(u => {
+      const key = u.supplier || 'Diğer';
+      if (!map[key]) map[key] = [];
+      map[key].push(u);
+    });
+    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+  const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi').length;
 
   return (
-    <div className="katalog-tab">
-      {/* Search + Filter */}
-      <div className="search-bar">
-        <input
-          type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder={t.ara} className="search-input"
-        />
-        <select value={katFilter} onChange={e => setKatFilter(e.target.value)} className="filter-select">
-          <option value="">{t.tumu}</option>
-          {kategoriler.map(k => <option key={k} value={k}>{k}</option>)}
-        </select>
-      </div>
-
-      {/* Product List */}
-      {filtered.length === 0 ? (
-        <div className="empty-state">{t.bos_katalog}</div>
-      ) : (
-        <div className="product-list">
-          {filtered.map(urun => (
-            <ProductCard key={urun.kod} urun={urun} fiyat={fiyatlar[urun.kod]} t={t} busy={busy} onEkle={onSiparisEkle} />
-          ))}
+    <div className="sip-app">
+      {/* Header */}
+      <header className="sip-header">
+        <div className="sip-header-left">
+          <div className="sip-header-logo">Bekilli Group</div>
+          <div className="sip-header-customer">{musteri.ad}</div>
         </div>
-      )}
-
-      {/* Yeni Ürün */}
-      <button className="yeni-urun-btn" onClick={() => setYeniUrunOpen(v => !v)}>
-        {yeniUrunOpen ? t.iptal_btn : t.yeni_urun}
-      </button>
-      {yeniUrunOpen && (
-        <YeniUrunForm t={t} busy={busy} onEkle={onSiparisEkle} onClose={() => setYeniUrunOpen(false)} />
-      )}
-    </div>
-  );
-}
-
-// ── Product Card ────────────────────────────────────
-function ProductCard({ urun, fiyat, t, busy, onEkle }) {
-  const [open, setOpen] = useState(false);
-  const [adet, setAdet] = useState('1');
-  const [not, setNot] = useState('');
-
-  function handleEkle() {
-    if (!adet || parseInt(adet) < 1) return;
-    onEkle(urun.kod, urun.ad, adet, not);
-    setOpen(false);
-    setAdet('1');
-    setNot('');
-  }
-
-  return (
-    <div className="product-card">
-      <div className="product-main" onClick={() => setOpen(v => !v)}>
-        <div className="product-info">
-          <div className="product-name">{urun.ad}</div>
-          <div className="product-meta">
-            <span className="product-code">{urun.kod}</span>
-            <span className="product-brand">{urun.marka}</span>
-          </div>
+        <div className="sip-header-right">
+          <LangToggle lang={lang} setLang={setLang} />
+          <button onClick={onLogout} className="sip-logout-btn">{t.cikis}</button>
         </div>
-        <div className="product-right">
-          {fiyat ? (
-            <div className="product-price">{fiyat.fiyat} {fiyat.doviz}</div>
+      </header>
+
+      {/* 3 Panel Body */}
+      <div className="sip-body">
+        {/* SOL: Filtreler (ince) */}
+        <aside className="sip-left">
+          <FilterSection title={t.kategori} items={kategoriler} value={katFilter} onChange={setKatFilter} allLabel={t.tumu} />
+          <FilterSection title={t.marka} items={markalar} value={markaFilter} onChange={setMarkaFilter} allLabel={t.tumu} />
+          <FilterSection title={t.supplier} items={suppliers} value={supplierFilter} onChange={setSupplierFilter} allLabel={t.tumu} />
+        </aside>
+
+        {/* ORTA: Katalog (ince) */}
+        <div className="sip-mid">
+          <input
+            type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder={t.ara} className="sip-search"
+          />
+          {grouped.length === 0 ? (
+            <div className="sip-empty">{t.bos_katalog}</div>
           ) : (
-            <div className="product-price no-price">{t.fiyat_sorun}</div>
+            <div className="sip-katalog-list">
+              {grouped.map(([supplier, items]) => (
+                <div key={supplier} className="sip-supplier-group">
+                  <div className="sip-supplier-label">{supplier}</div>
+                  {items.map(u => (
+                    <div key={u.kod} className="sip-katalog-item" onClick={() => sepeteEkle(u.kod, u.ad, 1)}>
+                      <div className="sip-ki-info">
+                        <div className="sip-ki-name">{u.ad}</div>
+                        <div className="sip-ki-code">{u.kod}</div>
+                      </div>
+                      <span className={`sip-ki-stock ${u.stokVar ? 'in' : 'out'}`}>
+                        {u.stokVar ? t.stokta : t.stok_yok}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
-          <span className={`stock-badge ${urun.stokVar ? 'in-stock' : 'no-stock'}`}>
-            {urun.stokVar ? t.stokta : t.stok_yok}
-          </span>
         </div>
-      </div>
 
-      {open && (
-        <div className="product-order-form">
-          <div className="order-row">
-            <input
-              type="number" min="1" max="99999" value={adet}
-              onChange={e => setAdet(e.target.value)}
-              className="adet-input" placeholder={t.adet}
-            />
-            <input
-              type="text" value={not} onChange={e => setNot(e.target.value)}
-              className="not-input" placeholder={t.not_placeholder} maxLength={500}
-            />
-            <button onClick={handleEkle} disabled={busy || !adet} className="ekle-btn">
-              {t.ekle}
+        {/* SAĞ: Sipariş paneli (geniş) */}
+        <div className="sip-right">
+          <div className="sip-tabs">
+            <button className={`sip-tab ${tab === 'siparis' ? 'active' : ''}`} onClick={() => setTab('siparis')}>
+              {t.siparis}
+              {sepet.length > 0 && <span className="sip-badge">{sepet.length}</span>}
+            </button>
+            <button className={`sip-tab ${tab === 'takip' ? 'active' : ''}`} onClick={() => setTab('takip')}>
+              {t.takip}
+              {bekleyenSayisi > 0 && <span className="sip-badge">{bekleyenSayisi}</span>}
+            </button>
+            <button className={`sip-tab ${tab === 'hesabim' ? 'active' : ''}`} onClick={() => setTab('hesabim')}>
+              {t.hesabim}
             </button>
           </div>
+
+          <div className="sip-tab-content">
+            {tab === 'siparis' && (
+              <SepetTab
+                t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog}
+                busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle}
+                onEkle={sepeteEkle} onGonder={siparisGonder}
+              />
+            )}
+            {tab === 'takip' && (
+              <TakipTab
+                t={t} siparisler={siparisler} fiyatlar={fiyatlar}
+                busy={busy} onSil={siparisSil} onGuncelle={siparisGuncelle}
+              />
+            )}
+            {tab === 'hesabim' && <HesabimTab t={t} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && <div className="sip-toast">{toast}</div>}
+    </div>
+  );
+}
+
+// ── Filter Section ──────────────────────────────────
+function FilterSection({ title, items, value, onChange, allLabel }) {
+  return (
+    <div className="sip-filter-section">
+      <div className="sip-filter-title">{title}</div>
+      <div
+        className={`sip-filter-item ${!value ? 'active' : ''}`}
+        onClick={() => onChange('')}
+      >{allLabel}</div>
+      {items.map(item => (
+        <div
+          key={item}
+          className={`sip-filter-item ${value === item ? 'active' : ''}`}
+          onClick={() => onChange(value === item ? '' : item)}
+        >{item}</div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sepet Tab (Sağ Panel Ana Sekme) ─────────────────
+function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, onEkle, onGonder }) {
+  // Autocomplete
+  const [acInput, setAcInput] = useState('');
+  const [acOpen, setAcOpen] = useState(false);
+  const acRef = useRef(null);
+
+  const acResults = useMemo(() => {
+    if (!acInput || acInput.length < 2) return [];
+    const s = acInput.toLowerCase();
+    return katalog.filter(u =>
+      u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)
+    ).slice(0, 8);
+  }, [acInput, katalog]);
+
+  function acSelect(urun) {
+    onEkle(urun.kod, urun.ad, 1);
+    setAcInput('');
+    setAcOpen(false);
+  }
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) { if (acRef.current && !acRef.current.contains(e.target)) setAcOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Inline new row
+  const [newAdet, setNewAdet] = useState('1');
+  const [newKod, setNewKod] = useState('');
+  const [newAcOpen, setNewAcOpen] = useState(false);
+  const newRef = useRef(null);
+
+  const newAcResults = useMemo(() => {
+    if (!newKod || newKod.length < 2) return [];
+    const s = newKod.toLowerCase();
+    return katalog.filter(u =>
+      u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)
+    ).slice(0, 6);
+  }, [newKod, katalog]);
+
+  function newRowSelect(urun) {
+    onEkle(urun.kod, urun.ad, parseInt(newAdet) || 1);
+    setNewKod('');
+    setNewAdet('1');
+    setNewAcOpen(false);
+  }
+
+  function newRowAdd() {
+    if (!newKod.trim()) return;
+    // Katalogda yoksa yeni ürün olarak ekle
+    const found = katalog.find(u => u.kod?.toLowerCase() === newKod.trim().toLowerCase());
+    if (found) {
+      onEkle(found.kod, found.ad, parseInt(newAdet) || 1);
+    } else {
+      // Parça no olarak algıla, supplier boş
+      onEkle(newKod.trim().toUpperCase(), newKod.trim().toUpperCase(), parseInt(newAdet) || 1, '', {
+        parcaNo: newKod.trim(), supplier: '', kategori: '',
+      });
+    }
+    setNewKod('');
+    setNewAdet('1');
+    setNewAcOpen(false);
+  }
+
+  useEffect(() => {
+    function handleClick(e) { if (newRef.current && !newRef.current.contains(e.target)) setNewAcOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Toplam hesapla
+  const sepetOzet = useMemo(() => {
+    let fiyatliToplam = 0;
+    let fiyatSorulacak = 0;
+    let topAdet = 0;
+    sepet.forEach(item => {
+      topAdet += item.adet;
+      const f = fiyatlar[item.urunKod];
+      if (f?.fiyat) {
+        fiyatliToplam += item.adet * f.fiyat;
+      } else {
+        fiyatSorulacak++;
+      }
+    });
+    const doviz = Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD';
+    return { fiyatliToplam, fiyatSorulacak, topAdet, doviz };
+  }, [sepet, fiyatlar]);
+
+  return (
+    <div className="sip-sepet-tab">
+      {/* Autocomplete arama */}
+      <div className="sip-ac-wrap" ref={acRef}>
+        <input
+          type="text" value={acInput}
+          onChange={e => { setAcInput(e.target.value); setAcOpen(true); }}
+          onFocus={() => acInput.length >= 2 && setAcOpen(true)}
+          placeholder={t.ekle_placeholder}
+          className="sip-ac-input"
+        />
+        {acOpen && acResults.length > 0 && (
+          <div className="sip-ac-dropdown">
+            {acResults.map(u => (
+              <div key={u.kod} className="sip-ac-item" onClick={() => acSelect(u)}>
+                <span>{u.kod} — {u.ad}</span>
+                <span className={`sip-ac-stock ${u.stokVar ? 'in' : 'out'}`}>
+                  {u.stokVar ? t.stokta : t.stok_yok}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sepet listesi */}
+      {sepet.length === 0 ? (
+        <div className="sip-empty">{t.sepet_bos}</div>
+      ) : (
+        <>
+          <div className="sip-cart-header">
+            <span className="sip-ch-adet">{t.adet}</span>
+            <span className="sip-ch-urun">{t.urun}</span>
+            <span className="sip-ch-birim">{t.birim}</span>
+            <span className="sip-ch-toplam">{t.toplam}</span>
+            <span className="sip-ch-del"></span>
+          </div>
+          {sepet.map(item => {
+            const f = fiyatlar[item.urunKod];
+            const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
+            return (
+              <div key={item.id} className="sip-cart-row">
+                <input
+                  type="number" min="1" max="99999" value={item.adet}
+                  onChange={e => onAdetGuncelle(item.id, e.target.value)}
+                  className="sip-cr-adet"
+                />
+                <div className="sip-cr-urun">
+                  <div className="sip-cr-name">{item.urunAd}</div>
+                  {item.urunKod !== item.urunAd && <div className="sip-cr-code">{item.urunKod}</div>}
+                  {item.yeniUrunData && <span className="sip-new-badge">NEW</span>}
+                </div>
+                <div className="sip-cr-birim">
+                  {f?.fiyat ? `${f.fiyat} ${f.doviz || 'USD'}` : <span className="sip-muted">{t.fiyat_sorun}</span>}
+                </div>
+                <div className="sip-cr-toplam">
+                  {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '—'}
+                </div>
+                <button className="sip-cr-del" onClick={() => onSil(item.id)}>✕</button>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* Inline yeni satır ekleme */}
+      <div className="sip-new-row" ref={newRef}>
+        <input
+          type="number" min="1" max="99999" value={newAdet}
+          onChange={e => setNewAdet(e.target.value)}
+          className="sip-nr-adet" placeholder={t.adet_gir}
+        />
+        <div className="sip-nr-input-wrap">
+          <input
+            type="text" value={newKod}
+            onChange={e => { setNewKod(e.target.value); setNewAcOpen(true); }}
+            onFocus={() => newKod.length >= 2 && setNewAcOpen(true)}
+            onKeyDown={e => { if (e.key === 'Enter') newRowAdd(); }}
+            placeholder={t.ekle_placeholder}
+            className="sip-nr-input"
+          />
+          {newAcOpen && newAcResults.length > 0 && (
+            <div className="sip-ac-dropdown sip-nr-dropdown">
+              {newAcResults.map(u => (
+                <div key={u.kod} className="sip-ac-item" onClick={() => newRowSelect(u)}>
+                  <span>{u.kod} — {u.ad}</span>
+                  <span className={`sip-ac-stock ${u.stokVar ? 'in' : 'out'}`}>
+                    {u.stokVar ? t.stokta : t.stok_yok}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <button className="sip-nr-add" onClick={newRowAdd} disabled={!newKod.trim()}>+</button>
+      </div>
+
+      {/* Toplam + Gönder */}
+      {sepet.length > 0 && (
+        <div className="sip-summary">
+          <div className="sip-sum-row">
+            <span className="sip-muted">{sepet.length} {t.satirlar}, {sepetOzet.topAdet} {t.topAdet}</span>
+          </div>
+          <div className="sip-sum-row">
+            <span className="sip-muted">{t.fiyatli_toplam}</span>
+            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
+          </div>
+          {sepetOzet.fiyatSorulacak > 0 && (
+            <div className="sip-sum-row">
+              <span className="sip-muted">{t.fiyat_sorun_kalem}</span>
+              <span className="sip-warn">{sepetOzet.fiyatSorulacak} {t.satirlar}</span>
+            </div>
+          )}
+          <div className="sip-sum-row sip-sum-total">
+            <span>{t.toplam}</span>
+            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
+          </div>
+          <button className="sip-send-btn" onClick={onGonder} disabled={busy}>
+            {busy ? t.gonderiliyor : t.gonder}
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-// ── Yeni Ürün Formu ─────────────────────────────────
-function YeniUrunForm({ t, busy, onEkle, onClose }) {
-  const [parcaNo, setParcaNo] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [urunAd, setUrunAd] = useState('');
-  const [kategori, setKategori] = useState('');
-  const [adet, setAdet] = useState('1');
-  const [not, setNot] = useState('');
-
-  const kod = parcaNo && supplier ? `${parcaNo}-${supplier}`.toUpperCase() : '';
-
-  function handleGonder() {
-    if (!parcaNo || !supplier || !adet) return;
-    onEkle(kod, urunAd || kod, adet, not, { parcaNo, supplier, kategori });
-    onClose();
-  }
-
-  return (
-    <div className="yeni-urun-form">
-      <h3 className="form-title">{t.yeni_urun_title}</h3>
-      <div className="form-grid">
-        <div className="form-field">
-          <label>{t.parca_no} *</label>
-          <input type="text" value={parcaNo} onChange={e => setParcaNo(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-field">
-          <label>{t.supplier} *</label>
-          <select value={supplier} onChange={e => setSupplier(e.target.value)}>
-            <option value="">---</option>
-            {SUPPLIERS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="form-field">
-          <label>{t.urun_ad}</label>
-          <input type="text" value={urunAd} onChange={e => setUrunAd(e.target.value)} maxLength={200} />
-        </div>
-        <div className="form-field">
-          <label>{t.kategori}</label>
-          <select value={kategori} onChange={e => setKategori(e.target.value)}>
-            <option value="">---</option>
-            {KATEGORILER.map(k => <option key={k} value={k}>{k}</option>)}
-          </select>
-        </div>
-        <div className="form-field">
-          <label>{t.adet} *</label>
-          <input type="number" min="1" max="99999" value={adet} onChange={e => setAdet(e.target.value)} />
-        </div>
-        <div className="form-field full-width">
-          <label>{t.not_placeholder}</label>
-          <input type="text" value={not} onChange={e => setNot(e.target.value)} maxLength={500} />
-        </div>
-      </div>
-      {kod && <div className="kod-preview">{t.parca_no}: <strong>{kod}</strong></div>}
-      <div className="form-actions">
-        <button onClick={onClose} className="cancel-btn">{t.iptal_btn}</button>
-        <button onClick={handleGonder} disabled={busy || !parcaNo || !supplier || !adet} className="submit-btn">
-          {t.gonder}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Siparişlerim Tab ────────────────────────────────
-function SiparislerimTab({ t, siparisler, fiyatlar, busy, onSil, onGuncelle }) {
+// ── Takip Tab ───────────────────────────────────────
+function TakipTab({ t, siparisler, fiyatlar, busy, onSil, onGuncelle }) {
   const beklemede = siparisler.filter(s => s.durum === 'beklemede');
   const kismi = siparisler.filter(s => s.durum === 'kismi');
   const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
   const iptal = siparisler.filter(s => s.durum === 'iptal');
 
   if (siparisler.length === 0) {
-    return <div className="empty-state">{t.bos_siparis}</div>;
+    return <div className="sip-empty">{t.bos_siparis}</div>;
   }
 
   return (
-    <div className="siparisler-tab">
-      <div className="siparis-ozet">
-        {beklemede.length + kismi.length} {t.beklemede} · {tamamlandi.length} {t.tamamlandi}
-      </div>
-
+    <div className="sip-takip-tab">
       {beklemede.length > 0 && (
-        <SiparisGroup title={t.beklemede} siparisler={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onSil={onSil} onGuncelle={onGuncelle} status="beklemede" />
+        <SiparisGroup label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
       )}
       {kismi.length > 0 && (
-        <SiparisGroup title={t.kismi} siparisler={kismi} t={t} fiyatlar={fiyatlar} busy={busy} status="kismi" />
+        <SiparisGroup label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
       {tamamlandi.length > 0 && (
-        <SiparisGroup title={t.tamamlandi} siparisler={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} status="tamamlandi" />
+        <SiparisGroup label={t.tamamlandi} status="tamamlandi" items={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
       {iptal.length > 0 && (
-        <SiparisGroup title={t.iptal} siparisler={iptal} t={t} fiyatlar={fiyatlar} busy={busy} status="iptal" />
+        <SiparisGroup label={t.iptal_durum} status="iptal" items={iptal} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
     </div>
   );
 }
 
-function SiparisGroup({ title, siparisler, t, fiyatlar, busy, onSil, onGuncelle, status }) {
+function SiparisGroup({ label, status, items, t, fiyatlar, busy, onSil, onGuncelle }) {
   return (
-    <div className="siparis-group">
-      <h3 className={`group-title status-${status}`}>{title} ({siparisler.length})</h3>
-      {siparisler.map(s => (
-        <SiparisCard key={s.id} siparis={s} t={t} fiyat={fiyatlar[s.urunKod]} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
+    <div className="sip-sgroup">
+      <div className={`sip-sgroup-label status-${status}`}>{label} ({items.length})</div>
+      {items.map(s => (
+        <SiparisCard key={s.id} s={s} t={t} fiyat={fiyatlar[s.urunKod]} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
       ))}
     </div>
   );
 }
 
-function SiparisCard({ siparis, t, fiyat, busy, onSil, onGuncelle }) {
-  const [editAdet, setEditAdet] = useState(false);
-  const [yeniAdet, setYeniAdet] = useState(String(siparis.adet));
-  const s = siparis;
+function SiparisCard({ s, t, fiyat, busy, onSil, onGuncelle }) {
+  const [editMode, setEditMode] = useState(false);
+  const [yeniAdet, setYeniAdet] = useState(String(s.adet));
+  const tarih = new Date(s.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
   function handleGuncelle() {
     if (parseInt(yeniAdet) !== s.adet && parseInt(yeniAdet) >= 1) {
       onGuncelle?.(s.id, yeniAdet);
     }
-    setEditAdet(false);
+    setEditMode(false);
   }
 
-  const tarih = new Date(s.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-
   return (
-    <div className={`siparis-card status-${s.durum}`}>
-      <div className="siparis-top">
-        <div className="siparis-info">
-          <div className="siparis-name">{s.urunAd}</div>
-          <div className="siparis-code">{s.urunKod}</div>
-          {s.yeniUrun && <span className="new-badge">NEW</span>}
+    <div className={`sip-scard status-${s.durum}`}>
+      <div className="sip-sc-top">
+        <div className="sip-sc-info">
+          <div className="sip-sc-name">{s.urunAd}</div>
+          <div className="sip-sc-code">{s.urunKod}</div>
         </div>
-        <div className="siparis-right">
-          <span className="siparis-tarih">{tarih}</span>
-          {fiyat && <span className="siparis-fiyat">{fiyat.fiyat} {fiyat.doviz}</span>}
+        <div className="sip-sc-right">
+          <span className="sip-sc-tarih">{tarih}</span>
+          {fiyat && <span className="sip-sc-fiyat">{fiyat.fiyat} {fiyat.doviz}</span>}
         </div>
       </div>
-
-      <div className="siparis-bottom">
-        <div className="siparis-adet">
-          {s.karsilanan > 0 && <span className="karsilanan">{s.karsilanan}/</span>}
-          <span>{s.adet} {t.adet}</span>
-          {s.karsilanan > 0 && <span className="karsilanan-label"> ({s.karsilanan} {t.karsilanan})</span>}
-        </div>
-        {s.not && <div className="siparis-not">{s.not}</div>}
-
-        {/* Düzenle/Sil butonları — sadece beklemede siparişler */}
-        {s.durum === 'beklemede' && s.karsilanan === 0 && (
-          <div className="siparis-actions">
-            {editAdet ? (
-              <div className="edit-adet">
-                <input type="number" min="1" max="99999" value={yeniAdet}
-                  onChange={e => setYeniAdet(e.target.value)} className="adet-edit-input" />
-                <button onClick={handleGuncelle} disabled={busy} className="update-btn">{t.guncelle}</button>
-                <button onClick={() => setEditAdet(false)} className="cancel-sm">{t.iptal_btn}</button>
-              </div>
-            ) : (
-              <>
-                <button onClick={() => { setYeniAdet(String(s.adet)); setEditAdet(true); }} className="edit-btn" disabled={busy}>
-                  {t.adet}
-                </button>
-                <button onClick={() => onSil?.(s.id)} className="sil-btn" disabled={busy}>{t.sil}</button>
-              </>
-            )}
-          </div>
-        )}
+      <div className="sip-sc-bottom">
+        <span className="sip-sc-adet">
+          {s.karsilanan > 0 && <span className="sip-karsilanan">{s.karsilanan}/</span>}
+          {s.adet} {t.adet}
+          {s.karsilanan > 0 && <span className="sip-muted"> ({s.karsilanan} {t.karsilanan})</span>}
+        </span>
+        {s.not && <div className="sip-sc-not">{s.not}</div>}
+        {s.yeniUrun && <span className="sip-new-badge">NEW</span>}
       </div>
+      {s.durum === 'beklemede' && s.karsilanan === 0 && onSil && (
+        <div className="sip-sc-actions">
+          {editMode ? (
+            <div className="sip-sc-edit">
+              <input type="number" min="1" max="99999" value={yeniAdet}
+                onChange={e => setYeniAdet(e.target.value)} className="sip-sc-edit-input" />
+              <button onClick={handleGuncelle} disabled={busy} className="sip-sc-edit-save">{t.guncelle}</button>
+              <button onClick={() => setEditMode(false)} className="sip-sc-edit-cancel">{t.iptal_btn}</button>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => { setYeniAdet(String(s.adet)); setEditMode(true); }} disabled={busy} className="sip-sc-btn edit">{t.adet}</button>
+              <button onClick={() => onSil(s.id)} disabled={busy} className="sip-sc-btn del">{t.sil}</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Hesabım Tab (placeholder) ───────────────────────
+function HesabimTab({ t }) {
+  return (
+    <div className="sip-hesabim-tab">
+      <div className="sip-empty">{t.hesabim_yakin}</div>
     </div>
   );
 }
@@ -613,7 +744,7 @@ function SiparisCard({ siparis, t, fiyat, busy, onSil, onGuncelle }) {
 // ── Lang Toggle ─────────────────────────────────────
 function LangToggle({ lang, setLang }) {
   return (
-    <button className="lang-toggle" onClick={() => setLang(l => l === 'tr' ? 'en' : 'tr')}>
+    <button className="sip-lang-toggle" onClick={() => setLang(l => l === 'tr' ? 'en' : 'tr')}>
       {lang === 'tr' ? 'EN' : 'TR'}
     </button>
   );
