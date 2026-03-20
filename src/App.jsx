@@ -137,7 +137,7 @@ export default function App() {
   function doLogout() {
     sessionStorage.removeItem('sip_pin');
     setPin(''); setMusteri(null); setLoggedIn(false);
-    setSiparisler([]); setFiyatlar([]); setKatalog([]);
+    setSiparisler([]); setFiyatlar({}); setKatalog([]);
   }
 
   async function refreshSiparisler() {
