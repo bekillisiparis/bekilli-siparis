@@ -179,13 +179,14 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-ac-stock.out { color: var(--sip-danger-text); }
 
 /* Cart header */
-.sip-cart-header { display: grid; grid-template-columns: 50px 1fr 80px 90px 28px; gap: 4px; padding: 8px 12px 4px; font-size: 9px; color: var(--sip-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
+.sip-cart-header { display: grid; grid-template-columns: 60px 1fr 80px 90px 28px; gap: 4px; padding: 8px 12px 4px; font-size: 9px; color: var(--sip-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
 .sip-ch-birim, .sip-ch-toplam { text-align: right; }
 
 /* Cart row */
-.sip-cart-row { display: grid; grid-template-columns: 50px 1fr 80px 90px 28px; gap: 4px; padding: 6px 12px; font-size: 13px; align-items: center; border-bottom: 1px solid var(--sip-border-faint); }
+.sip-cart-row { display: grid; grid-template-columns: 60px 1fr 80px 90px 28px; gap: 4px; padding: 6px 12px; font-size: 13px; align-items: center; border-bottom: 1px solid var(--sip-border-faint); }
 .sip-cart-row:hover { background: var(--sip-bg-subtle); }
-.sip-cr-adet { width: 44px; padding: 4px; font-size: 13px; text-align: center; border: 1px solid var(--sip-border); border-radius: var(--sip-radius-sm); font-family: inherit; outline: none; color: var(--sip-accent); font-weight: 600; }
+.sip-cr-adet { width: 100%; padding: 5px 4px; font-size: 13px; text-align: center; border: 1px solid var(--sip-border); border-radius: var(--sip-radius-sm); font-family: inherit; outline: none; color: var(--sip-accent); font-weight: 600; -moz-appearance: textfield; }
+.sip-cr-adet::-webkit-inner-spin-button, .sip-cr-adet::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .sip-cr-adet:focus { border-color: var(--sip-accent); }
 .sip-cr-urun { min-width: 0; overflow: hidden; }
 .sip-cr-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -196,8 +197,9 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-cr-del:hover { color: var(--sip-danger); }
 
 /* Inline new row */
-.sip-new-row { display: grid; grid-template-columns: 50px 1fr 28px; gap: 4px; padding: 6px 12px; background: var(--sip-bg-input); border-top: 1px dashed var(--sip-border); flex-shrink: 0; position: relative; }
-.sip-nr-adet { width: 44px; padding: 4px; font-size: 12px; text-align: center; border: 1px solid var(--sip-border); border-radius: var(--sip-radius-sm); font-family: inherit; outline: none; background: var(--sip-bg); color: var(--sip-text); }
+.sip-new-row { display: grid; grid-template-columns: 60px 1fr 28px; gap: 4px; padding: 6px 12px; background: var(--sip-bg-input); border-top: 1px dashed var(--sip-border); flex-shrink: 0; position: relative; }
+.sip-nr-adet { width: 100%; padding: 5px 4px; font-size: 12px; text-align: center; border: 1px solid var(--sip-border); border-radius: var(--sip-radius-sm); font-family: inherit; outline: none; background: var(--sip-bg); color: var(--sip-text); -moz-appearance: textfield; }
+.sip-nr-adet::-webkit-inner-spin-button, .sip-nr-adet::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .sip-nr-adet:focus { border-color: var(--sip-accent); }
 .sip-nr-input-wrap { position: relative; }
 .sip-nr-input { width: 100%; padding: 5px 8px; font-size: 12px; border: 1px solid var(--sip-border); border-radius: var(--sip-radius-sm); font-family: inherit; outline: none; background: var(--sip-bg); color: var(--sip-text); }
@@ -319,7 +321,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
   .sip-header-customer { font-size: 12px; }
   .sip-login-card { padding: 36px 24px; }
   .sip-pin-input { font-size: 20px; letter-spacing: 8px; }
-  .sip-cart-header { grid-template-columns: 42px 1fr 60px 70px 24px; }
-  .sip-cart-row { grid-template-columns: 42px 1fr 60px 70px 24px; padding: 5px 8px; }
-  .sip-cr-adet { width: 36px; font-size: 12px; }
+  .sip-cart-header { grid-template-columns: 50px 1fr 60px 70px 24px; }
+  .sip-cart-row { grid-template-columns: 50px 1fr 60px 70px 24px; padding: 5px 8px; }
+  .sip-cr-adet { font-size: 12px; }
 }
