@@ -407,15 +407,19 @@ async function adminMusterilerGuncelle(body) {
 
   // Validasyon
   for (const m of musteriler) {
-    if (!m.id || !m.ad || !m.pinHash) {
-      return { hata: `Müşteri eksik: id, ad, pinHash zorunlu (${m.id || '?'})`, status: 400 };
+    if (!m.id || !m.ad) {
+      return { hata: `Müşteri eksik: id ve ad zorunlu (${m.id || '?'})`, status: 400 };
     }
     m.ad = stripHtml(m.ad);
     // firmaId — ana uygulamadaki müşteri bağlantısı
     if (m.firmaId) m.firmaId = stripHtml(m.firmaId);
-    // pinHash zaten hex string, XSS riski yok ama validate edelim
-    if (!/^[a-f0-9]{64}$/.test(m.pinHash)) {
-      return { hata: `Geçersiz PIN hash formatı: ${m.id}`, status: 400 };
+    // M6: pinHash opsiyonel — null/absent = müşteri portala login edemez ama veri sync çalışır
+    if (m.pinHash) {
+      if (!/^[a-f0-9]{64}$/.test(m.pinHash)) {
+        return { hata: `Geçersiz PIN hash formatı: ${m.id}`, status: 400 };
+      }
+    } else {
+      m.pinHash = null; // normalize: undefined → null
     }
   }
 
