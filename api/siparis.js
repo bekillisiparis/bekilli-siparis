@@ -385,6 +385,8 @@ async function adminMusterilerGuncelle(body) {
       return { hata: `Müşteri eksik: id, ad, pinHash zorunlu (${m.id || '?'})`, status: 400 };
     }
     m.ad = stripHtml(m.ad);
+    // firmaId — ana uygulamadaki müşteri bağlantısı
+    if (m.firmaId) m.firmaId = stripHtml(m.firmaId);
     // pinHash zaten hex string, XSS riski yok ama validate edelim
     if (!/^[a-f0-9]{64}$/.test(m.pinHash)) {
       return { hata: `Geçersiz PIN hash formatı: ${m.id}`, status: 400 };
