@@ -272,8 +272,9 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-new-badge { display: inline-block; padding: 2px 8px; font-size: 9px; font-weight: 700; background: var(--sip-accent); color: var(--sip-bg); border-radius: 12px; margin-left: 4px; vertical-align: middle; }
 
 /* Icons — linear style */
-.sip-login-icon { color: var(--sip-accent); margin-bottom: 16px; }
-.sip-login-icon svg { width: 48px; height: 48px; }
+.sip-login-icon { margin-bottom: 16px; }
+.sip-login-icon img { height: 60px; object-fit: contain; }
+[data-theme="dark"] .sip-login-icon img { filter: brightness(1.8) contrast(0.9); }
 .sip-theme-toggle svg { display: block; }
 .sip-cr-del svg { display: block; }
 
