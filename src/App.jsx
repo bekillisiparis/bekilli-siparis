@@ -105,6 +105,7 @@ export default function App() {
   const [apiKategoriler, setApiKategoriler] = useState([]);
   const [fiyatlar, setFiyatlar] = useState({});
   const [siparisler, setSiparisler] = useState([]);
+  const [sonYenileme, setSonYenileme] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
@@ -132,6 +133,7 @@ export default function App() {
       ]);
       setMusteri({ id: userData.musteriId, ad: userData.musteriAd });
       setSiparisler(userData.siparisler || []);
+      setSonYenileme(new Date());
       setFiyatlar(extractFiyatlar(userData.fiyatlar));
       setKatalog(katData.urunler || []);
       setApiSuppliers(katData.suppliers || []);
@@ -161,6 +163,7 @@ export default function App() {
     try {
       const data = await apiCall(API, pin);
       setSiparisler(data.siparisler || []);
+      setSonYenileme(new Date());
     } catch (err) { console.warn('Sipariş yenileme hatası:', err.message); }
   }
 
@@ -172,7 +175,7 @@ export default function App() {
     <MainApp
       t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} pin={pin}
       musteri={musteri} katalog={katalog} fiyatlar={fiyatlar}
-      siparisler={siparisler} refreshSiparisler={refreshSiparisler}
+      siparisler={siparisler} refreshSiparisler={refreshSiparisler} sonYenileme={sonYenileme}
       onLogout={doLogout}
     />
   );
@@ -214,7 +217,7 @@ function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onL
 }
 
 // ── MainApp — 3 Panel Desktop ───────────────────────
-function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, onLogout }) {
+function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, sonYenileme, onLogout }) {
   const [tab, setTab] = useState('siparis');
   const [sepet, setSepet] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -441,6 +444,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
               <TakipTab
                 t={t} siparisler={siparisler} fiyatlar={fiyatlar}
                 busy={busy} onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
+                onRefresh={refreshSiparisler} sonYenileme={sonYenileme}
               />
             )}
             {tab === 'hesabim' && <HesabimTab t={t} />}
@@ -496,6 +500,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
                 <TakipTab
                   t={t} siparisler={siparisler} fiyatlar={fiyatlar}
                   busy={busy} onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
+                  onRefresh={refreshSiparisler} sonYenileme={sonYenileme}
                 />
               )}
               {tab === 'hesabim' && <HesabimTab t={t} />}
@@ -751,20 +756,61 @@ function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, on
 }
 
 // ── Takip Tab ───────────────────────────────────────
-function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
+// ── Toplam hesaplama helper ──────────────────────────
+function hesaplaToplamlar(kalemler, fiyatlar) {
+  const map = {}; // doviz -> toplam
+  let bilinmeyenVar = false;
+  kalemler.forEach(k => {
+    const f = fiyatlar[k.urunKod];
+    if (f && f.fiyat) {
+      const d = f.doviz || 'USD';
+      map[d] = (map[d] || 0) + f.fiyat * k.adet;
+    } else {
+      bilinmeyenVar = true;
+    }
+  });
+  return { map, bilinmeyenVar };
+}
+
+function formatToplamStr(map, bilinmeyenVar) {
+  const parts = Object.entries(map).map(([doviz, tutar]) =>
+    `${doviz === 'USD' ? '$' : doviz === 'EUR' ? '€' : doviz === 'TRY' ? '₺' : doviz + ' '}${tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  );
+  if (parts.length === 0) return null;
+  return parts.join(' + ') + (bilinmeyenVar ? ' + fiyatsız kalemler' : '');
+}
+
+function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil, onRefresh, sonYenileme }) {
+  const [refreshing, setRefreshing] = useState(false);
   const beklemede = siparisler.filter(s => s.durum === 'beklemede');
   const kismi = siparisler.filter(s => s.durum === 'kismi');
   const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
   const iptal = siparisler.filter(s => s.durum === 'iptal');
 
-  if (siparisler.length === 0) {
-    return <div className="sip-empty">{t.bos_siparis}</div>;
+  async function handleRefresh() {
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
   }
+
+  const yenilemeStr = sonYenileme
+    ? sonYenileme.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : null;
 
   return (
     <div className="sip-takip-tab">
+      <div className="sip-takip-refresh-bar">
+        {yenilemeStr && <span className="sip-son-yenileme">Son güncelleme: {yenilemeStr}</span>}
+        <button className="sip-refresh-btn" onClick={handleRefresh} disabled={refreshing || busy}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: refreshing ? 'transform 0.6s linear' : 'none' }}>
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          {refreshing ? 'Yükleniyor...' : 'Yenile'}
+        </button>
+      </div>
+      {siparisler.length === 0 && <div className="sip-empty">{t.bos_siparis}</div>}
       {beklemede.length > 0 && (
-        <SiparisGrupList label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
+        <SiparisGrupList label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} showToplamBanner onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
       )}
       {kismi.length > 0 && (
         <SiparisGrupList label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
@@ -779,10 +825,21 @@ function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, o
   );
 }
 
-function SiparisGrupList({ label, status, items, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
+function SiparisGrupList({ label, status, items, t, fiyatlar, busy, showToplamBanner, onGrupSil, onKalemGuncelle, onKalemSil }) {
+  // Beklemede banner: tüm gruplardaki tüm kalemlerin toplamı
+  let bannerStr = null;
+  if (showToplamBanner) {
+    const tumKalemler = items.flatMap(g => g.kalemler || []);
+    const { map, bilinmeyenVar } = hesaplaToplamlar(tumKalemler, fiyatlar);
+    bannerStr = formatToplamStr(map, bilinmeyenVar);
+  }
+
   return (
     <div className="sip-sgroup">
-      <div className={`sip-sgroup-label status-${status}`}>{label} ({items.length})</div>
+      <div className={`sip-sgroup-label status-${status}`}>
+        {label} ({items.length})
+        {bannerStr && <span className="sip-sgroup-toplam">{bannerStr}</span>}
+      </div>
       {items.map(grup => (
         <SiparisGrupCard key={grup.id} grup={grup} t={t} fiyatlar={fiyatlar} busy={busy}
           onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil}
@@ -801,9 +858,12 @@ function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, 
   const topKarsilanan = kalemler.reduce((s, k) => s + (k.karsilanan || 0), 0);
   const editable = grup.durum === 'beklemede' && topKarsilanan === 0;
 
+  // Grup toplamı (açıkken gösterilecek)
+  const { map: grupMap, bilinmeyenVar: grupBilinmeyen } = hesaplaToplamlar(kalemler, fiyatlar);
+  const grupToplamStr = formatToplamStr(grupMap, grupBilinmeyen);
+
   return (
     <div className={`sip-grup-card status-${grup.durum}`}>
-      {/* Grup başlık — tıkla aç/kapat */}
       <div className="sip-gc-header" onClick={() => setOpen(o => !o)}>
         <div className="sip-gc-left">
           <span className="sip-gc-count">{topKalem} {t.satirlar}</span>
@@ -817,7 +877,6 @@ function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, 
         </div>
       </div>
 
-      {/* Kalem listesi — açılınca görünür */}
       {open && (
         <div className="sip-gc-kalemler">
           {kalemler.map(k => (
@@ -825,7 +884,12 @@ function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, 
               editable={editable} busy={busy} onGuncelle={onKalemGuncelle} onSil={onKalemSil}
             />
           ))}
-          {/* Grup sil butonu */}
+          {grupToplamStr && (
+            <div className="sip-grup-toplam-row">
+              <span>Toplam</span>
+              <span className="sip-grup-toplam-val">{grupToplamStr}</span>
+            </div>
+          )}
           {editable && onGrupSil && (
             <button className="sip-gc-del" onClick={() => onGrupSil(grup.id)} disabled={busy}>
               {t.sil}
@@ -849,6 +913,15 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil }) {
     setEditMode(false);
   }
 
+  const satirToplamStr = fiyat && fiyat.fiyat
+    ? (() => {
+        const sym = fiyat.doviz === 'USD' ? '$' : fiyat.doviz === 'EUR' ? '€' : fiyat.doviz === 'TRY' ? '₺' : (fiyat.doviz + ' ');
+        const birim = `${sym}${fiyat.fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const top = `${sym}${(fiyat.fiyat * k.adet).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return { birim, top };
+      })()
+    : null;
+
   return (
     <div className="sip-kalem-row">
       <div className="sip-kr-info">
@@ -858,7 +931,10 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil }) {
       <div className="sip-kr-right">
         {k.karsilanan > 0 && <span className="sip-kr-karsi">{k.karsilanan}/</span>}
         <span className="sip-kr-adet">{k.adet}</span>
-        {fiyat && <span className="sip-kr-fiyat">{fiyat.fiyat} {fiyat.doviz}</span>}
+        {satirToplamStr
+          ? <span className="sip-kr-fiyat"><span className="sip-kr-birim-fiyat">{satirToplamStr.birim}</span><span className="sip-kr-x">×{k.adet} = </span><strong>{satirToplamStr.top}</strong></span>
+          : <span className="sip-kr-fiyat sip-kr-fiyat-yok">Fiyat sorulacak</span>
+        }
         {k.yeniUrun && <span className="sip-new-badge">NEW</span>}
       </div>
       {editable && onSil && !editMode && (
