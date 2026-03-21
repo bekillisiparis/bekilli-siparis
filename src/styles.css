@@ -143,8 +143,8 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-search { width: 100%; padding: 7px 10px; font-size: 12px; border: 1px solid var(--sip-border); border-radius: var(--sip-radius); background: var(--sip-bg); outline: none; margin-bottom: 8px; font-family: inherit; color: var(--sip-text); }
 .sip-search:focus { border-color: var(--sip-accent); }
 .sip-katalog-list { flex: 1; overflow-y: auto; }
-.sip-supplier-group { margin-bottom: 10px; }
-.sip-supplier-label { font-size: 10px; font-weight: 600; color: var(--sip-text-muted); text-transform: uppercase; letter-spacing: 0.3px; padding: 4px 0; border-bottom: 1px solid var(--sip-border-light); margin-bottom: 2px; }
+.sip-supplier-group { margin-bottom: 12px; }
+.sip-supplier-label { font-size: 11px; font-weight: 700; color: var(--sip-accent); text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 2px solid var(--sip-accent-bg); margin-bottom: 4px; background: var(--sip-accent-bg); border-radius: var(--sip-radius) var(--sip-radius) 0 0; }
 .sip-katalog-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px; border-radius: var(--sip-radius); cursor: pointer; gap: 4px; transition: background 0.15s; }
 .sip-katalog-item:hover { background: var(--sip-accent-bg); }
 .sip-katalog-item:active { background: var(--sip-accent-bg-hover); }
