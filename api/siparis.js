@@ -581,10 +581,57 @@ async function adminSiparislerOku() {
   return { ok: true, musteriler: tumu };
 }
 
+// ── Admin: Katalog Stok Güncelle ─────────────────────
+// Tüm katalog yeniden yayınlamadan sadece stokVar alanlarını günceller.
+// afterTransaction hook'ları (alış/satış/iade) tarafından fire-and-forget çağrılır.
+// guncellemeler: [{ kod: "3264700-AMBAC", stokVar: true }, ...]
+async function adminKatalogStokGuncelle(body) {
+  const { guncellemeler } = body;
+  if (!Array.isArray(guncellemeler) || guncellemeler.length === 0) {
+    return { hata: 'guncellemeler dizisi boş veya geçersiz', status: 400 };
+  }
+
+  // Validasyon
+  for (const g of guncellemeler) {
+    if (!g.kod || typeof g.stokVar !== 'boolean') {
+      return { hata: `Geçersiz güncelleme: kod ve stokVar(boolean) zorunlu (${g.kod || '?'})`, status: 400 };
+    }
+    g.kod = stripHtml(g.kod);
+  }
+
+  const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
+  if (!katalog || !Array.isArray(katalog.urunler)) {
+    return { hata: 'Katalog bulunamadı. Önce Katalog Yayınla yapın.', status: 404 };
+  }
+
+  // Hızlı güncelleme: map üzerinden
+  const guncellemeMap = {};
+  for (const g of guncellemeler) guncellemeMap[g.kod] = g.stokVar;
+
+  let degisen = 0;
+  katalog.urunler = katalog.urunler.map(u => {
+    if (u.kod in guncellemeMap && u.stokVar !== guncellemeMap[u.kod]) {
+      degisen++;
+      return { ...u, stokVar: guncellemeMap[u.kod] };
+    }
+    return u;
+  });
+
+  if (degisen === 0) {
+    // Değişecek bir şey yok, Gist'e yazmaya gerek yok
+    return { ok: true, degisen: 0, mesaj: 'Stok durumları zaten güncel' };
+  }
+
+  katalog.guncelleme = new Date().toISOString();
+  await gistWriteFile(KAT_GIST, 'katalog.json', katalog);
+
+  return { ok: true, degisen, toplam: guncellemeler.length };
+}
+
 // ── Admin: Sipariş Kalem Karşıla ────────────────────
 // Müşterinin siparişinde kalem bazlı karsilanan miktarını günceller
 async function adminSiparisKarsila(body) {
-  const { musteriId, siparisId, kalemId, karsilanan, not } = body;
+  const { musteriId, siparisId, kalemId, karsilanan, not, fiyat, doviz } = body;
   if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
   if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
   if (!kalemId)   return { hata: 'kalemId gerekli', status: 400 };
@@ -615,6 +662,8 @@ async function adminSiparisKarsila(body) {
     tarih: new Date().toISOString(),
     kalemId,
     miktar,
+    fiyat: parseFloat(fiyat) || null,     // birim satış fiyatı — B2 TakipTab + F1 hesap için
+    doviz: stripHtml(doviz || 'USD'),      // fiyatın dövizi
     not: stripHtml(not || ''),
   });
 
@@ -663,6 +712,68 @@ async function adminSiparisKarsilamaDusur(body) {
   await writeSiparisler(musteriId, sipData);
 
   return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+}
+
+// ── Admin: Sipariş İade Bildir ────────────────────────
+// Seçenek B: karsilanan DÜŞMEZ. Kalem altında iadeler[] array'ine entry ekler.
+// Gelecek genişleme için tasarlanmış:
+//   - hareketId: ana uygulamadaki iade hareketinin ID'si (fatura/hesap sistemi köprüsü)
+//   - tip: "iade" | "kayip" | "hasar" (ileride yeni tipler eklenebilir)
+//   - sonrakiAdimlar response alanı: caller'a ne yapması gerektiğini söyler
+//     (stok sync, hesap güncelleme vb. — şimdilik boş, hook'lar büyüdükçe dolar)
+async function adminSiparisIadeBildir(body) {
+  const { musteriId, siparisId, kalemId, miktar, sebep, tip, hareketId } = body;
+  if (!musteriId)  return { hata: 'musteriId gerekli', status: 400 };
+  if (!siparisId)  return { hata: 'siparisId gerekli', status: 400 };
+  if (!kalemId)    return { hata: 'kalemId gerekli', status: 400 };
+
+  const iadeMiktar = parseInt(miktar, 10);
+  if (!Number.isInteger(iadeMiktar) || iadeMiktar <= 0) {
+    return { hata: 'İade miktarı 1 veya daha fazla olmalı', status: 400 };
+  }
+
+  const geçerliTipler = ['iade', 'kayip', 'hasar'];
+  const iadeTip = geçerliTipler.includes(tip) ? tip : 'iade';
+
+  const sipData = await readSiparisler(musteriId);
+  const sip = sipData.siparisler.find(s => s.id === siparisId);
+  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+
+  const kalem = sip.kalemler.find(k => k.id === kalemId);
+  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
+
+  // Validasyon: iade ≤ karsilanan
+  const mevcutIade = (kalem.iadeler || []).reduce((s, i) => s + (i.miktar || 0), 0);
+  if (iadeMiktar > (kalem.karsilanan || 0) - mevcutIade) {
+    return {
+      hata: `İade miktarı (${iadeMiktar}), net karşılanan miktarı (${(kalem.karsilanan||0) - mevcutIade}) aşamaz`,
+      status: 400,
+    };
+  }
+
+  // kalem.iadeler[] array'ine ekle — karsilanan DEĞİŞMEZ (Seçenek B)
+  kalem.iadeler = kalem.iadeler || [];
+  kalem.iadeler.push({
+    id: `iade-${Date.now()}`,       // ileride referans için
+    tarih: new Date().toISOString(),
+    miktar: iadeMiktar,
+    sebep: stripHtml(sebep || ''),
+    tip: iadeTip,
+    hareketId: hareketId || null,   // ana uygulama iade hareketi ID'si — fatura köprüsü
+  });
+
+  // hasIade flag: TakipTab'da uyarı badge için hızlı erişim
+  sip.hasIade = sip.kalemler.some(k => (k.iadeler || []).length > 0);
+
+  await writeSiparisler(musteriId, sipData);
+
+  // sonrakiAdimlar: caller hook sistemi büyüdükçe buraya eklenecek
+  // Şu an boş — B1 (stok sync), F1 (hesap güncel) gibi adımlar ileride buradan yönetilecek
+  return {
+    ok: true,
+    siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) },
+    sonrakiAdimlar: [],
+  };
 }
 
 // ── Admin: Sipariş İptal ────────────────────────────
@@ -826,11 +937,13 @@ export default async function handler(req, res) {
 
         const adminIslemler = {
           katalog_yayinla: adminKatalogYayinla,
+          katalog_stok_guncelle: adminKatalogStokGuncelle,
           musteriler_guncelle: adminMusterilerGuncelle,
           fiyat_guncelle: adminFiyatGuncelle,
           hesap_guncelle: adminHesapGuncelle,
           siparis_karsila: adminSiparisKarsila,
           siparis_karsilama_dusur: adminSiparisKarsilamaDusur,
+          siparis_iade_bildir: adminSiparisIadeBildir,
           siparis_iptal: adminSiparisIptal,
           durum_override: adminDurumOverride,
           admin_pin_guncelle: adminPinGuncelle,
