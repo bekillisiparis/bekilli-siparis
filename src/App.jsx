@@ -332,7 +332,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
   const grouped = useMemo(() => {
     const map = {};
     filtered.forEach(u => {
-      const key = u.supplier || 'Diğer';
+      const key = u.supplier || 'Genel';
       if (!map[key]) map[key] = [];
       map[key].push(u);
     });
