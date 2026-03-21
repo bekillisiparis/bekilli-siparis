@@ -600,6 +600,48 @@ async function adminSiparisKarsila(body) {
   return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
 }
 
+// ── Admin: Sipariş Karşılama Düşür (İade / Geri Alma) ────────────
+// Bir kalemin karsilanan miktarını düşürür. İade veya yanlışlık düzeltme için.
+async function adminSiparisKarsilamaDusur(body) {
+  const { musteriId, siparisId, kalemId, dusurMiktar, sebep, tip } = body;
+  if (!musteriId)  return { hata: 'musteriId gerekli', status: 400 };
+  if (!siparisId)  return { hata: 'siparisId gerekli', status: 400 };
+  if (!kalemId)    return { hata: 'kalemId gerekli', status: 400 };
+
+  const miktar = parseInt(dusurMiktar, 10);
+  if (!Number.isInteger(miktar) || miktar <= 0) {
+    return { hata: 'Düşürülecek miktar 1 veya daha fazla olmalı', status: 400 };
+  }
+
+  const sipData = await readSiparisler(musteriId);
+  const sip = sipData.siparisler.find(s => s.id === siparisId);
+  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+
+  const kalem = sip.kalemler.find(k => k.id === kalemId);
+  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
+
+  if (miktar > (kalem.karsilanan || 0)) {
+    return { hata: `Düşürülecek miktar (${miktar}) mevcut karşılanandan (${kalem.karsilanan || 0}) fazla olamaz`, status: 400 };
+  }
+
+  // Karşılama düşür
+  kalem.karsilanan = (kalem.karsilanan || 0) - miktar;
+
+  // Log kaydı
+  sip.karsilamalar = sip.karsilamalar || [];
+  sip.karsilamalar.push({
+    tarih: new Date().toISOString(),
+    kalemId,
+    miktar: -miktar,
+    tip: tip || 'iade', // "iade" veya "duzeltme"
+    sebep: stripHtml(sebep || ''),
+  });
+
+  await writeSiparisler(musteriId, sipData);
+
+  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+}
+
 // ── Admin: Sipariş İptal ────────────────────────────
 async function adminSiparisIptal(body) {
   const { musteriId, siparisId, sebep } = body;
@@ -765,6 +807,7 @@ export default async function handler(req, res) {
           fiyat_guncelle: adminFiyatGuncelle,
           hesap_guncelle: adminHesapGuncelle,
           siparis_karsila: adminSiparisKarsila,
+          siparis_karsilama_dusur: adminSiparisKarsilamaDusur,
           siparis_iptal: adminSiparisIptal,
           durum_override: adminDurumOverride,
         };
