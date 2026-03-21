@@ -313,12 +313,35 @@ function isAdminOrigin(origin) {
 }
 
 // ── Admin PIN doğrulama ──────────────────────────────
-// GÜVENLİK: Admin PIN hash'i SADECE Vercel env'de (ADMIN_PIN_HASH)
-// musteriler.json'da DEĞİL, client'ta DEĞİL
+// Önce Gist'teki dinamik hash'e bak (PIN Değiştir ile güncellenir)
+// Yoksa Vercel env ADMIN_PIN_HASH'e fallback (ilk kurulum)
+let _cachedAdminHash = null; // cold start'ta null, ilk auth'ta Gist'ten okunur
+async function getAdminHash() {
+  if (_cachedAdminHash) return _cachedAdminHash;
+  try {
+    const stored = await gistReadFile(SIP_GIST, 'admin_config.json');
+    if (stored?.pinHash) { _cachedAdminHash = stored.pinHash; return _cachedAdminHash; }
+  } catch { /* Gist'te yoksa env var kullan */ }
+  _cachedAdminHash = ADMIN_PIN_HASH || null;
+  return _cachedAdminHash;
+}
 async function authenticateAdmin(pin) {
-  if (!ADMIN_PIN_HASH) return false;
+  const targetHash = await getAdminHash();
+  if (!targetHash) return false;
   const hash = await hashPin(pin);
-  return hash === ADMIN_PIN_HASH;
+  return hash === targetHash;
+}
+
+// ── Admin: PIN Değiştir ─────────────────────────────
+// CloudSync PinDegistir'den çağrılır. Yeni hash'i Gist'e yazar.
+async function adminPinGuncelle(body) {
+  const { yeniHash } = body;
+  if (!yeniHash || !/^[a-f0-9]{64}$/.test(yeniHash)) {
+    return { hata: 'Geçerli SHA-256 hash gerekli', status: 400 };
+  }
+  await gistWriteFile(SIP_GIST, 'admin_config.json', { pinHash: yeniHash, guncelleme: new Date().toISOString() });
+  _cachedAdminHash = yeniHash; // cache güncelle
+  return { ok: true };
 }
 
 // ── Admin: Katalog Yayınla ──────────────────────────
@@ -810,6 +833,7 @@ export default async function handler(req, res) {
           siparis_karsilama_dusur: adminSiparisKarsilamaDusur,
           siparis_iptal: adminSiparisIptal,
           durum_override: adminDurumOverride,
+          admin_pin_guncelle: adminPinGuncelle,
         };
 
         if (!adminIslemler[islem]) {
