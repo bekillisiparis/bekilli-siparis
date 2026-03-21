@@ -255,33 +255,33 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
     setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: a } : s));
   }
 
-  // ── Sipariş gönder (tüm sepet) ──────────────────
+  // ── Sipariş gönder (tüm sepet → tek grup) ────────
   async function siparisGonder() {
     if (sepet.length === 0 || busy) return;
     setBusy(true);
-    let basarili = 0;
-    for (const item of sepet) {
-      try {
-        const body = { islem: 'ekle', urunKod: item.urunKod, urunAd: item.urunAd, adet: item.adet, not: item.not || '' };
+    try {
+      const kalemler = sepet.map(item => {
+        const k = { urunKod: item.urunKod, urunAd: item.urunAd, adet: item.adet, not: item.not || '' };
         if (item.yeniUrunData) {
-          body.yeniUrun = true;
-          body.parcaNo = item.yeniUrunData.parcaNo;
-          body.supplier = item.yeniUrunData.supplier;
-          body.kategori = item.yeniUrunData.kategori;
+          k.yeniUrun = true;
+          k.parcaNo = item.yeniUrunData.parcaNo;
+          k.supplier = item.yeniUrunData.supplier;
+          k.kategori = item.yeniUrunData.kategori;
         }
-        await apiCall(API, pin, body);
-        basarili++;
-      } catch (err) { console.warn('Sipariş gönderme hatası:', err.message); }
-    }
-    await refreshSiparisler();
-    setSepet([]);
-    showToast(`${basarili} ${t.gonderildi}`);
+        return k;
+      });
+      await apiCall(API, pin, { islem: 'ekle', kalemler });
+      await refreshSiparisler();
+      setSepet([]);
+      showToast(`${kalemler.length} ${t.satirlar} ${t.gonderildi}`);
+      setTab('takip');
+      setSheetOpen(false);
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
     setBusy(false);
-    setTab('takip');
-    setSheetOpen(false);
   }
 
   // ── Takip: sipariş sil ──────────────────────────
+  // ── Takip: sipariş grubu sil ─────────────────────
   async function siparisSil(siparisId) {
     setBusy(true);
     try {
@@ -291,11 +291,21 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
     setBusy(false);
   }
 
-  // ── Takip: sipariş güncelle ─────────────────────
-  async function siparisGuncelle(siparisId, adet) {
+  // ── Takip: kalem adet güncelle ──────────────────
+  async function kalemGuncelle(siparisId, kalemId, adet) {
     setBusy(true);
     try {
-      await apiCall(API, pin, { islem: 'guncelle', siparisId, adet: parseInt(adet) });
+      await apiCall(API, pin, { islem: 'guncelle', siparisId, kalemId, adet: parseInt(adet) });
+      await refreshSiparisler();
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
+  }
+
+  // ── Takip: kalem sil ───────────────────────────
+  async function kalemSil(siparisId, kalemId) {
+    setBusy(true);
+    try {
+      await apiCall(API, pin, { islem: 'kalem_sil', siparisId, kalemId });
       await refreshSiparisler();
     } catch (err) { showToast(t.hata + ': ' + err.message); }
     setBusy(false);
@@ -430,7 +440,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
             {tab === 'takip' && (
               <TakipTab
                 t={t} siparisler={siparisler} fiyatlar={fiyatlar}
-                busy={busy} onSil={siparisSil} onGuncelle={siparisGuncelle}
+                busy={busy} onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
               />
             )}
             {tab === 'hesabim' && <HesabimTab t={t} />}
@@ -485,7 +495,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
               {tab === 'takip' && (
                 <TakipTab
                   t={t} siparisler={siparisler} fiyatlar={fiyatlar}
-                  busy={busy} onSil={siparisSil} onGuncelle={siparisGuncelle}
+                  busy={busy} onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
                 />
               )}
               {tab === 'hesabim' && <HesabimTab t={t} />}
@@ -737,7 +747,7 @@ function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, on
 }
 
 // ── Takip Tab ───────────────────────────────────────
-function TakipTab({ t, siparisler, fiyatlar, busy, onSil, onGuncelle }) {
+function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
   const beklemede = siparisler.filter(s => s.durum === 'beklemede');
   const kismi = siparisler.filter(s => s.durum === 'kismi');
   const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
@@ -750,80 +760,116 @@ function TakipTab({ t, siparisler, fiyatlar, busy, onSil, onGuncelle }) {
   return (
     <div className="sip-takip-tab">
       {beklemede.length > 0 && (
-        <SiparisGroup label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
+        <SiparisGrupList label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
       )}
       {kismi.length > 0 && (
-        <SiparisGroup label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
+        <SiparisGrupList label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
       {tamamlandi.length > 0 && (
-        <SiparisGroup label={t.tamamlandi} status="tamamlandi" items={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} />
+        <SiparisGrupList label={t.tamamlandi} status="tamamlandi" items={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
       {iptal.length > 0 && (
-        <SiparisGroup label={t.iptal_durum} status="iptal" items={iptal} t={t} fiyatlar={fiyatlar} busy={busy} />
+        <SiparisGrupList label={t.iptal_durum} status="iptal" items={iptal} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
     </div>
   );
 }
 
-function SiparisGroup({ label, status, items, t, fiyatlar, busy, onSil, onGuncelle }) {
+function SiparisGrupList({ label, status, items, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
   return (
     <div className="sip-sgroup">
       <div className={`sip-sgroup-label status-${status}`}>{label} ({items.length})</div>
-      {items.map(s => (
-        <SiparisCard key={s.id} s={s} t={t} fiyat={fiyatlar[s.urunKod]} busy={busy} onSil={onSil} onGuncelle={onGuncelle} />
+      {items.map(grup => (
+        <SiparisGrupCard key={grup.id} grup={grup} t={t} fiyatlar={fiyatlar} busy={busy}
+          onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil}
+        />
       ))}
     </div>
   );
 }
 
-function SiparisCard({ s, t, fiyat, busy, onSil, onGuncelle }) {
-  const [editMode, setEditMode] = useState(false);
-  const [yeniAdet, setYeniAdet] = useState(String(s.adet));
-  const tarih = new Date(s.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
+  const [open, setOpen] = useState(false);
+  const kalemler = grup.kalemler || [];
+  const tarih = new Date(grup.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const topKalem = kalemler.length;
+  const topAdet = kalemler.reduce((s, k) => s + k.adet, 0);
+  const topKarsilanan = kalemler.reduce((s, k) => s + (k.karsilanan || 0), 0);
+  const editable = grup.durum === 'beklemede' && topKarsilanan === 0;
 
-  function handleGuncelle() {
-    if (parseInt(yeniAdet) !== s.adet && parseInt(yeniAdet) >= 1) {
-      onGuncelle?.(s.id, yeniAdet);
+  return (
+    <div className={`sip-grup-card status-${grup.durum}`}>
+      {/* Grup başlık — tıkla aç/kapat */}
+      <div className="sip-gc-header" onClick={() => setOpen(o => !o)}>
+        <div className="sip-gc-left">
+          <span className="sip-gc-count">{topKalem} {t.satirlar}</span>
+          <span className="sip-gc-adet">{topKarsilanan > 0 ? `${topKarsilanan}/` : ''}{topAdet} {t.topAdet}</span>
+        </div>
+        <div className="sip-gc-right">
+          <span className="sip-gc-tarih">{tarih}</span>
+          <span className={`sip-gc-chevron ${open ? 'open' : ''}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+      </div>
+
+      {/* Kalem listesi — açılınca görünür */}
+      {open && (
+        <div className="sip-gc-kalemler">
+          {kalemler.map(k => (
+            <KalemRow key={k.id} k={k} grupId={grup.id} t={t} fiyat={fiyatlar[k.urunKod]}
+              editable={editable} busy={busy} onGuncelle={onKalemGuncelle} onSil={onKalemSil}
+            />
+          ))}
+          {/* Grup sil butonu */}
+          {editable && onGrupSil && (
+            <button className="sip-gc-del" onClick={() => onGrupSil(grup.id)} disabled={busy}>
+              {t.sil}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil }) {
+  const [editMode, setEditMode] = useState(false);
+  const [yeniAdet, setYeniAdet] = useState(String(k.adet));
+
+  function handleSave() {
+    const a = parseInt(yeniAdet);
+    if (a && a !== k.adet && a >= 1) {
+      onGuncelle?.(grupId, k.id, a);
     }
     setEditMode(false);
   }
 
   return (
-    <div className={`sip-scard status-${s.durum}`}>
-      <div className="sip-sc-top">
-        <div className="sip-sc-info">
-          <div className="sip-sc-name">{s.urunAd}</div>
-          <div className="sip-sc-code">{s.urunKod}</div>
-        </div>
-        <div className="sip-sc-right">
-          <span className="sip-sc-tarih">{tarih}</span>
-          {fiyat && <span className="sip-sc-fiyat">{fiyat.fiyat} {fiyat.doviz}</span>}
-        </div>
+    <div className="sip-kalem-row">
+      <div className="sip-kr-info">
+        <span className="sip-kr-name">{k.urunAd}</span>
+        <span className="sip-kr-code">{k.urunKod}</span>
       </div>
-      <div className="sip-sc-bottom">
-        <span className="sip-sc-adet">
-          {s.karsilanan > 0 && <span className="sip-karsilanan">{s.karsilanan}/</span>}
-          {s.adet} {t.adet}
-          {s.karsilanan > 0 && <span className="sip-muted"> ({s.karsilanan} {t.karsilanan})</span>}
-        </span>
-        {s.not && <div className="sip-sc-not">{s.not}</div>}
-        {s.yeniUrun && <span className="sip-new-badge">NEW</span>}
+      <div className="sip-kr-right">
+        {k.karsilanan > 0 && <span className="sip-kr-karsi">{k.karsilanan}/</span>}
+        <span className="sip-kr-adet">{k.adet}</span>
+        {fiyat && <span className="sip-kr-fiyat">{fiyat.fiyat} {fiyat.doviz}</span>}
+        {k.yeniUrun && <span className="sip-new-badge">NEW</span>}
       </div>
-      {s.durum === 'beklemede' && s.karsilanan === 0 && onSil && (
-        <div className="sip-sc-actions">
-          {editMode ? (
-            <div className="sip-sc-edit">
-              <input type="number" min="1" max="99999" value={yeniAdet}
-                onChange={e => setYeniAdet(e.target.value)} className="sip-sc-edit-input" />
-              <button onClick={handleGuncelle} disabled={busy} className="sip-sc-edit-save">{t.guncelle}</button>
-              <button onClick={() => setEditMode(false)} className="sip-sc-edit-cancel">{t.iptal_btn}</button>
-            </div>
-          ) : (
-            <>
-              <button onClick={() => { setYeniAdet(String(s.adet)); setEditMode(true); }} disabled={busy} className="sip-sc-btn edit">{t.adet}</button>
-              <button onClick={() => onSil(s.id)} disabled={busy} className="sip-sc-btn del">{t.sil}</button>
-            </>
-          )}
+      {editable && onSil && !editMode && (
+        <div className="sip-kr-actions">
+          <button onClick={() => { setYeniAdet(String(k.adet)); setEditMode(true); }} disabled={busy} className="sip-kr-btn">{t.adet}</button>
+          <button onClick={() => onSil(grupId, k.id)} disabled={busy} className="sip-kr-btn del">{t.sil}</button>
+        </div>
+      )}
+      {editMode && (
+        <div className="sip-kr-edit">
+          <input type="number" min="1" max="99999" value={yeniAdet}
+            onChange={e => setYeniAdet(e.target.value)} className="sip-kr-edit-input"
+            style={{ fontSize: 16 }} />
+          <button onClick={handleSave} disabled={busy} className="sip-kr-btn">{t.guncelle}</button>
+          <button onClick={() => setEditMode(false)} className="sip-kr-btn">{t.iptal_btn}</button>
         </div>
       )}
     </div>
