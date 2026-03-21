@@ -403,11 +403,12 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
                     <div key={u.kod} className="sip-katalog-item" onClick={() => sepeteEkle(u.kod, u.ad, 1)}>
                       <div className="sip-ki-info">
                         <div className="sip-ki-name">{u.ad}</div>
-                        <div className="sip-ki-code">{u.kod}</div>
-                        {fiyatlar[u.kod]?.fiyat
-                          ? <div className="sip-ki-fiyat">{fiyatlar[u.kod].fiyat} {fiyatlar[u.kod].doviz || 'USD'}</div>
-                          : <div className="sip-ki-fiyat sip-ki-fiyat--sor">{t.fiyat_sorun}</div>
-                        }
+                        <div className="sip-ki-code">
+                          {u.kod}
+                          {fiyatlar[u.kod]?.fiyat && (
+                            <span className="sip-ki-fiyat">{fiyatlar[u.kod].fiyat} {fiyatlar[u.kod].doviz || 'USD'}</span>
+                          )}
+                        </div>
                       </div>
                       <span className={`sip-ki-stock ${u.stokVar ? 'in' : 'out'}`}>
                         {u.stokVar ? t.stokta : t.stok_yok}
