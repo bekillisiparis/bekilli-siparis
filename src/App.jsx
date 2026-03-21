@@ -651,15 +651,17 @@ function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, on
       ) : (
         <>
           <div className="sip-cart-header">
-            <span className="sip-ch-adet">{t.adet}</span>
-            <span className="sip-ch-urun">{t.urun}</span>
-            <span className="sip-ch-birim">{t.birim}</span>
-            <span className="sip-ch-toplam">{t.toplam}</span>
-            <span className="sip-ch-del"></span>
+            <span>{t.adet}</span>
+            <span>{t.urun}</span>
+            <span style={{textAlign:'right'}}>{t.toplam}</span>
+            <span></span>
           </div>
           {sepet.map(item => {
             const f = fiyatlar[item.urunKod];
             const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
+            // Supplier'ı koddan çıkar (3264700-AMBAC → AMBAC)
+            const parts = item.urunKod.split('-');
+            const supplier = parts.length > 1 ? parts[parts.length - 1] : '';
             return (
               <div key={item.id} className="sip-cart-row">
                 <input
@@ -668,17 +670,19 @@ function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, on
                   className="sip-cr-adet"
                 />
                 <div className="sip-cr-urun">
-                  <div className="sip-cr-name">{item.urunAd}</div>
-                  {item.urunKod !== item.urunAd && <div className="sip-cr-code">{item.urunKod}</div>}
+                  <span className="sip-cr-name">{item.urunAd}</span>
+                  {supplier && <span className="sip-cr-supplier">{supplier}</span>}
                   {item.yeniUrunData && <span className="sip-new-badge">NEW</span>}
                 </div>
-                <div className="sip-cr-birim">
-                  {f?.fiyat ? `${f.fiyat} ${f.doviz || 'USD'}` : <span className="sip-muted">{t.fiyat_sorun}</span>}
+                <div className="sip-cr-fiyat">
+                  {satirToplam != null
+                    ? <>{satirToplam.toLocaleString()} <span className="sip-cr-doviz">{f.doviz || 'USD'}</span></>
+                    : <span className="sip-cr-soru">?</span>
+                  }
                 </div>
-                <div className="sip-cr-toplam">
-                  {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '—'}
-                </div>
-                <button className="sip-cr-del" onClick={() => onSil(item.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                <button className="sip-cr-del" onClick={() => onSil(item.id)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
               </div>
             );
           })}
