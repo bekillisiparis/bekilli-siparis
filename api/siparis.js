@@ -718,8 +718,15 @@ export default async function handler(req, res) {
     }
 
     try {
-      // ── Admin GET: Siparişleri oku ──────────────────
+      // ── Admin GET: Veri oku ────────────────────────────
       if (req.method === 'GET') {
+        const veri = req.query.veri;
+        if (veri === 'musteriler') {
+          // Müşteri listesini oku (PIN hash'ler dahil — sadece admin görebilir)
+          const musteriler = await gistReadFile(SIP_GIST, 'musteriler.json');
+          return res.status(200).json({ ok: true, musteriler: musteriler || [] });
+        }
+        // Varsayılan: siparişleri oku
         const sonuc = await adminSiparislerOku();
         return res.status(200).json(sonuc);
       }
