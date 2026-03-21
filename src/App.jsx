@@ -91,8 +91,7 @@ const LANG = {
   },
 };
 
-const SUPPLIERS = ['AMBAC', 'Delphi', 'Bosch', 'Denso', 'OEM', 'CAT', 'Stanadyne'];
-const KATEGORILER = ['Nozzle', 'Injector', 'Plunger', 'Element', 'Pump', 'Valve', 'Gasket'];
+// Suppliers ve kategoriler artık API'den geliyor (K0.10 — tek kaynak)
 
 // ── App ─────────────────────────────────────────────
 export default function App() {
@@ -101,6 +100,8 @@ export default function App() {
   const [pin, setPin] = useState(() => sessionStorage.getItem('sip_pin') || '');
   const [musteri, setMusteri] = useState(null);
   const [katalog, setKatalog] = useState([]);
+  const [apiSuppliers, setApiSuppliers] = useState([]);
+  const [apiKategoriler, setApiKategoriler] = useState([]);
   const [fiyatlar, setFiyatlar] = useState({});
   const [siparisler, setSiparisler] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -112,7 +113,7 @@ export default function App() {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
   }, []);
 
-  useEffect(() => { fetch(API).catch(() => {}); }, []);
+  useEffect(() => { fetch(API).catch(e => console.warn('Preheat:', e.message)); }, []);
   useEffect(() => { localStorage.setItem('sip_lang', lang); }, [lang]);
   useEffect(() => {
     localStorage.setItem('sip_theme', theme);
@@ -132,6 +133,12 @@ export default function App() {
       setSiparisler(userData.siparisler || []);
       setFiyatlar(extractFiyatlar(userData.fiyatlar));
       setKatalog(katData.urunler || []);
+      setApiSuppliers(katData.suppliers || []);
+      setApiKategoriler(katData.kategoriler || []);
+      // K0.12: API versiyon uyumluluk kontrolü
+      if (katData.apiVersion && !katData.apiVersion.startsWith('2.')) {
+        console.warn('Katalog API versiyonu uyumsuz:', katData.apiVersion);
+      }
       sessionStorage.setItem('sip_pin', p);
       setPin(p);
       setLoggedIn(true);
@@ -146,6 +153,7 @@ export default function App() {
     sessionStorage.removeItem('sip_pin');
     setPin(''); setMusteri(null); setLoggedIn(false);
     setSiparisler([]); setFiyatlar({}); setKatalog([]);
+    setApiSuppliers([]); setApiKategoriler([]);
   }
 
   async function refreshSiparisler() {
@@ -217,6 +225,9 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
   const [markaFilter, setMarkaFilter] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [search, setSearch] = useState('');
+  // Mobile bottom sheet
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 2500); }
 
@@ -267,6 +278,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
     showToast(`${basarili} ${t.gonderildi}`);
     setBusy(false);
     setTab('takip');
+    setSheetOpen(false);
   }
 
   // ── Takip: sipariş sil ──────────────────────────
@@ -336,19 +348,37 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
 
       {/* 3 Panel Body */}
       <div className="sip-body">
-        {/* SOL: Filtreler (ince) */}
+        {/* SOL: Filtreler (desktop only) */}
         <aside className="sip-left">
           <FilterSection title={t.kategori} items={kategoriler} value={katFilter} onChange={setKatFilter} allLabel={t.tumu} />
           <FilterSection title={t.marka} items={markalar} value={markaFilter} onChange={setMarkaFilter} allLabel={t.tumu} />
           <FilterSection title={t.supplier} items={suppliers} value={supplierFilter} onChange={setSupplierFilter} allLabel={t.tumu} />
         </aside>
 
-        {/* ORTA: Katalog (ince) */}
+        {/* ORTA: Katalog */}
         <div className="sip-mid">
-          <input
-            type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder={t.ara} className="sip-search"
-          />
+          {/* Mobil: arama + filtre toggle */}
+          <div className="sip-mid-topbar">
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={t.ara} className="sip-search"
+            />
+            <button className="sip-filter-toggle" onClick={() => setShowFilters(f => !f)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              {(katFilter || markaFilter || supplierFilter) && <span className="sip-filter-dot" />}
+            </button>
+          </div>
+
+          {/* Mobil filtre drawer */}
+          {showFilters && (
+            <div className="sip-mobile-filters">
+              <FilterSection title={t.kategori} items={kategoriler} value={katFilter} onChange={v => { setKatFilter(v); }} allLabel={t.tumu} />
+              <FilterSection title={t.marka} items={markalar} value={markaFilter} onChange={v => { setMarkaFilter(v); }} allLabel={t.tumu} />
+              <FilterSection title={t.supplier} items={suppliers} value={supplierFilter} onChange={v => { setSupplierFilter(v); }} allLabel={t.tumu} />
+              <button className="sip-filter-close" onClick={() => setShowFilters(false)}>{t.tumu} — {filtered.length} {t.urun}</button>
+            </div>
+          )}
+
           {grouped.length === 0 ? (
             <div className="sip-empty">{t.bos_katalog}</div>
           ) : (
@@ -373,7 +403,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           )}
         </div>
 
-        {/* SAĞ: Sipariş paneli (geniş) */}
+        {/* SAĞ: Sipariş paneli (desktop) */}
         <div className="sip-right">
           <div className="sip-tabs">
             <button className={`sip-tab ${tab === 'siparis' ? 'active' : ''}`} onClick={() => setTab('siparis')}>
@@ -407,6 +437,62 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           </div>
         </div>
       </div>
+
+      {/* ── MOBILE BOTTOM BAR (sabit, sadece mobilde görünür) ── */}
+      <div className="sip-mobile-bar" onClick={() => setSheetOpen(true)}>
+        <div className="sip-mb-left">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+          {sepet.length > 0 && <span className="sip-mb-badge">{sepet.length}</span>}
+        </div>
+        <div className="sip-mb-center">
+          {sepet.length > 0 ? `${sepet.length} ${t.satirlar}` : t.siparis}
+          {bekleyenSayisi > 0 && <span className="sip-mb-pending"> · {bekleyenSayisi} {t.beklemede}</span>}
+        </div>
+        <div className="sip-mb-chevron">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+      </div>
+
+      {/* ── MOBILE BOTTOM SHEET ── */}
+      {sheetOpen && (
+        <>
+          <div className="sip-sheet-backdrop" onClick={() => setSheetOpen(false)} />
+          <div className="sip-sheet">
+            <div className="sip-sheet-handle" onClick={() => setSheetOpen(false)}>
+              <div className="sip-sheet-bar" />
+            </div>
+            <div className="sip-tabs">
+              <button className={`sip-tab ${tab === 'siparis' ? 'active' : ''}`} onClick={() => setTab('siparis')}>
+                {t.siparis}
+                {sepet.length > 0 && <span className="sip-badge">{sepet.length}</span>}
+              </button>
+              <button className={`sip-tab ${tab === 'takip' ? 'active' : ''}`} onClick={() => setTab('takip')}>
+                {t.takip}
+                {bekleyenSayisi > 0 && <span className="sip-badge">{bekleyenSayisi}</span>}
+              </button>
+              <button className={`sip-tab ${tab === 'hesabim' ? 'active' : ''}`} onClick={() => setTab('hesabim')}>
+                {t.hesabim}
+              </button>
+            </div>
+            <div className="sip-sheet-content">
+              {tab === 'siparis' && (
+                <SepetTab
+                  t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog}
+                  busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle}
+                  onEkle={sepeteEkle} onGonder={siparisGonder}
+                />
+              )}
+              {tab === 'takip' && (
+                <TakipTab
+                  t={t} siparisler={siparisler} fiyatlar={fiyatlar}
+                  busy={busy} onSil={siparisSil} onGuncelle={siparisGuncelle}
+                />
+              )}
+              {tab === 'hesabim' && <HesabimTab t={t} />}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Toast */}
       {toast && <div className="sip-toast">{toast}</div>}
