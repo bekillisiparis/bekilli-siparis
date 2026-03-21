@@ -104,7 +104,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-login-form { display: flex; flex-direction: column; gap: 12px; }
 .sip-pin-input { width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 12px; border: 2px solid var(--sip-border); border-radius: 16px; outline: none; font-family: inherit; transition: border-color 0.2s; }
 .sip-pin-input:focus { border-color: var(--sip-accent); }
-.sip-pin-btn { padding: 14px 24px; font-size: 16px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 24px; cursor: pointer; font-family: inherit; transition: all 0.2s; box-shadow: var(--sip-shadow); }
+.sip-pin-btn { padding: 14px 24px; font-size: 16px; font-weight: 700; background: var(--sip-accent); color: #FFFFFF; border: none; border-radius: 24px; cursor: pointer; font-family: inherit; transition: all 0.2s; box-shadow: var(--sip-shadow); }
 .sip-pin-btn:hover:not(:disabled) { opacity: 0.85; }
 .sip-pin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sip-login-error { color: var(--sip-danger); font-size: 14px; margin-top: 12px; font-weight: 500; }
