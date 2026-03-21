@@ -163,8 +163,11 @@ function deriveDurum(kalemler, durumOverride) {
   if (durumOverride) return durumOverride; // Admin override varsa o geçerli
   if (!kalemler || kalemler.length === 0) return 'beklemede';
   const hepsiTamam = kalemler.every(k => k.karsilanan >= k.adet);
-  const hicBaslamamis = kalemler.every(k => k.karsilanan === 0);
+  const hicBaslamamis = kalemler.every(k => k.karsilanan === 0 && !(k.hazirlanan > 0));
   if (hepsiTamam) return 'tamamlandi';
+  // M2: Taslak fatura hazırlanıyorsa → "hazırlaniyor" durumu
+  const hazırlananVar = kalemler.some(k => (k.hazirlanan || 0) > 0 && k.karsilanan < k.adet);
+  if (hicBaslamamis && hazırlananVar) return 'hazirlaniyor';
   if (hicBaslamamis) return 'beklemede';
   return 'kismi';
 }
@@ -584,7 +587,8 @@ async function adminSiparislerOku() {
 // ── Admin: Katalog Stok Güncelle ─────────────────────
 // Tüm katalog yeniden yayınlamadan sadece stokVar alanlarını günceller.
 // afterTransaction hook'ları (alış/satış/iade) tarafından fire-and-forget çağrılır.
-// guncellemeler: [{ kod: "3264700-AMBAC", stokVar: true }, ...]
+// guncellemeler: [{ kod, stokVar, parcaNo?, ad?, supplier?, marka?, kategori? }]
+// Upsert: tam bilgi varsa yeni ürün eklenir, yoksa sadece stokVar güncellenir.
 async function adminKatalogStokGuncelle(body) {
   const { guncellemeler } = body;
   if (!Array.isArray(guncellemeler) || guncellemeler.length === 0) {
@@ -597,6 +601,11 @@ async function adminKatalogStokGuncelle(body) {
       return { hata: `Geçersiz güncelleme: kod ve stokVar(boolean) zorunlu (${g.kod || '?'})`, status: 400 };
     }
     g.kod = stripHtml(g.kod);
+    if (g.parcaNo) g.parcaNo = stripHtml(g.parcaNo);
+    if (g.ad) g.ad = stripHtml(g.ad);
+    if (g.supplier) g.supplier = stripHtml(g.supplier);
+    if (g.marka) g.marka = stripHtml(g.marka);
+    if (g.kategori) g.kategori = stripHtml(g.kategori);
   }
 
   const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
@@ -604,28 +613,57 @@ async function adminKatalogStokGuncelle(body) {
     return { hata: 'Katalog bulunamadı. Önce Katalog Yayınla yapın.', status: 404 };
   }
 
-  // Hızlı güncelleme: map üzerinden
-  const guncellemeMap = {};
-  for (const g of guncellemeler) guncellemeMap[g.kod] = g.stokVar;
-
+  // Mevcut ürünleri kod bazlı map'e al
+  const mevcutKodMap = new Set(katalog.urunler.map(u => u.kod));
   let degisen = 0;
+  let eklenen = 0;
+
+  // Mevcut ürünlerin stokVar güncelle
   katalog.urunler = katalog.urunler.map(u => {
-    if (u.kod in guncellemeMap && u.stokVar !== guncellemeMap[u.kod]) {
+    const g = guncellemeler.find(x => x.kod === u.kod);
+    if (g && u.stokVar !== g.stokVar) {
       degisen++;
-      return { ...u, stokVar: guncellemeMap[u.kod] };
+      return { ...u, stokVar: g.stokVar };
     }
     return u;
   });
 
-  if (degisen === 0) {
-    // Değişecek bir şey yok, Gist'e yazmaya gerek yok
-    return { ok: true, degisen: 0, mesaj: 'Stok durumları zaten güncel' };
+  // Yeni ürünler: katalogda olmayan + tam bilgisi gelen
+  for (const g of guncellemeler) {
+    if (mevcutKodMap.has(g.kod)) continue; // zaten güncellendi
+    if (!g.ad) continue; // ad yoksa ekleme yapamayız (sadece stokVar güncellemesi istenmiş)
+    katalog.urunler.push({
+      kod: g.kod,
+      parcaNo: g.parcaNo || g.kod,
+      ad: g.ad,
+      supplier: g.supplier || '',
+      marka: g.marka || '',
+      kategori: g.kategori || '',
+      stokVar: g.stokVar,
+    });
+    eklenen++;
+  }
+
+  // Suppliers ve kategoriler setini güncelle (yeni ürünlerden gelen değerler)
+  if (eklenen > 0) {
+    const suppliersSet = new Set(katalog.suppliers || []);
+    const kategorilerSet = new Set(katalog.kategoriler || []);
+    for (const u of katalog.urunler) {
+      if (u.supplier) suppliersSet.add(u.supplier);
+      if (u.kategori) kategorilerSet.add(u.kategori);
+    }
+    katalog.suppliers = [...suppliersSet].sort();
+    katalog.kategoriler = [...kategorilerSet].sort();
+  }
+
+  if (degisen === 0 && eklenen === 0) {
+    return { ok: true, degisen: 0, eklenen: 0, mesaj: 'Katalog zaten güncel' };
   }
 
   katalog.guncelleme = new Date().toISOString();
   await gistWriteFile(KAT_GIST, 'katalog.json', katalog);
 
-  return { ok: true, degisen, toplam: guncellemeler.length };
+  return { ok: true, degisen, eklenen, toplam: guncellemeler.length };
 }
 
 // ── Admin: Sipariş Kalem Karşıla ────────────────────
@@ -657,15 +695,22 @@ async function adminSiparisKarsila(body) {
 
   // Karşılama kaydı
   kalem.karsilanan = miktar;
+  // Kesinleşme: taslak→kesin geçişte hazirlanan temizlenir
+  if (kalem.hazirlanan) kalem.hazirlanan = 0;
+
   sip.karsilamalar = sip.karsilamalar || [];
-  sip.karsilamalar.push({
+  const karsilamaKayit = {
     tarih: new Date().toISOString(),
     kalemId,
     miktar,
     fiyat: parseFloat(fiyat) || null,     // birim satış fiyatı — B2 TakipTab + F1 hesap için
     doviz: stripHtml(doviz || 'USD'),      // fiyatın dövizi
     not: stripHtml(not || ''),
-  });
+  };
+  // M11: Muadil ürün bilgisi (orijinal ürün yerine farklı supplier gönderildiğinde)
+  if (body.muadilKod) karsilamaKayit.muadilKod = stripHtml(body.muadilKod);
+  if (body.muadilAd)  karsilamaKayit.muadilAd  = stripHtml(body.muadilAd);
+  sip.karsilamalar.push(karsilamaKayit);
 
   await writeSiparisler(musteriId, sipData);
 
@@ -774,6 +819,85 @@ async function adminSiparisIadeBildir(body) {
     siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) },
     sonrakiAdimlar: [],
   };
+}
+
+// ── Admin: Sipariş Hazırlanıyor (Taslak fatura → sipariş bildirimi) ──
+// M2: Taslak fatura oluşturulduğunda, müşterinin sipariş kaleminde hazirlanan alanını set eder.
+// Müşteri portalında "Hazırlanıyor" durumu görünür (M4).
+// Geriden başlayarak eşleştirilir — aynı ürün birden fazla siparişte varsa en yeni önce.
+async function adminSiparisHazirlaniyor(body) {
+  const { musteriId, kalemler } = body;
+  // kalemler: [{ siparisId, kalemId, hazirlanan }]
+  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+  if (!Array.isArray(kalemler) || kalemler.length === 0) {
+    return { hata: 'kalemler dizisi boş veya geçersiz', status: 400 };
+  }
+
+  const sipData = await readSiparisler(musteriId);
+  let guncellenen = 0;
+
+  for (const k of kalemler) {
+    if (!k.siparisId || !k.kalemId) continue;
+    const miktar = parseInt(k.hazirlanan, 10);
+    if (!Number.isInteger(miktar) || miktar < 0) continue;
+
+    const sip = sipData.siparisler.find(s => s.id === k.siparisId);
+    if (!sip) continue;
+
+    const durum = deriveDurum(sip.kalemler, sip.durumOverride);
+    if (durum === 'iptal' || durum === 'tamamlandi') continue;
+
+    const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
+    if (!kalem) continue;
+
+    // hazirlanan ≤ (adet - karsilanan) — zaten karşılanan kısmı hazırlamaya gerek yok
+    const maxHazir = kalem.adet - (kalem.karsilanan || 0);
+    kalem.hazirlanan = Math.min(miktar, maxHazir);
+    guncellenen++;
+  }
+
+  if (guncellenen === 0) {
+    return { ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
+  }
+
+  await writeSiparisler(musteriId, sipData);
+  return { ok: true, guncellenen };
+}
+
+// ── Admin: Sipariş Hazırlama Düşür (Taslak iptal/silindiğinde) ───────
+// E4: Taslak fatura silinirse hazırlanan geri düşürülür.
+async function adminSiparisHazirlamaDusur(body) {
+  const { musteriId, kalemler } = body;
+  // kalemler: [{ siparisId, kalemId, dusurMiktar }]
+  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+  if (!Array.isArray(kalemler) || kalemler.length === 0) {
+    return { hata: 'kalemler dizisi boş veya geçersiz', status: 400 };
+  }
+
+  const sipData = await readSiparisler(musteriId);
+  let guncellenen = 0;
+
+  for (const k of kalemler) {
+    if (!k.siparisId || !k.kalemId) continue;
+    const miktar = parseInt(k.dusurMiktar, 10);
+    if (!Number.isInteger(miktar) || miktar <= 0) continue;
+
+    const sip = sipData.siparisler.find(s => s.id === k.siparisId);
+    if (!sip) continue;
+
+    const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
+    if (!kalem) continue;
+
+    kalem.hazirlanan = Math.max(0, (kalem.hazirlanan || 0) - miktar);
+    guncellenen++;
+  }
+
+  if (guncellenen === 0) {
+    return { ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
+  }
+
+  await writeSiparisler(musteriId, sipData);
+  return { ok: true, guncellenen };
 }
 
 // ── Admin: Sipariş İptal ────────────────────────────
@@ -944,6 +1068,8 @@ export default async function handler(req, res) {
           siparis_karsila: adminSiparisKarsila,
           siparis_karsilama_dusur: adminSiparisKarsilamaDusur,
           siparis_iade_bildir: adminSiparisIadeBildir,
+          siparis_hazirlaniyor: adminSiparisHazirlaniyor,
+          siparis_hazirlaniyor_dusur: adminSiparisHazirlamaDusur,
           siparis_iptal: adminSiparisIptal,
           durum_override: adminDurumOverride,
           admin_pin_guncelle: adminPinGuncelle,
