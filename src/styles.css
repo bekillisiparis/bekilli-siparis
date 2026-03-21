@@ -50,6 +50,31 @@
   --sip-mono: 'SF Mono', ui-monospace, Menlo, monospace;
 }
 
+/* ── Scrollbar — ince, tema uyumlu ────────────────── */
+.sip-left::-webkit-scrollbar,
+.sip-mid::-webkit-scrollbar,
+.sip-katalog-list::-webkit-scrollbar,
+.sip-tab-content::-webkit-scrollbar,
+.sip-sheet-content::-webkit-scrollbar { width: 4px; }
+.sip-left::-webkit-scrollbar-track,
+.sip-mid::-webkit-scrollbar-track,
+.sip-katalog-list::-webkit-scrollbar-track,
+.sip-tab-content::-webkit-scrollbar-track,
+.sip-sheet-content::-webkit-scrollbar-track { background: transparent; }
+.sip-left::-webkit-scrollbar-thumb,
+.sip-mid::-webkit-scrollbar-thumb,
+.sip-katalog-list::-webkit-scrollbar-thumb,
+.sip-tab-content::-webkit-scrollbar-thumb,
+.sip-sheet-content::-webkit-scrollbar-thumb { background: var(--sip-border); border-radius: 4px; }
+.sip-left::-webkit-scrollbar-thumb:hover,
+.sip-mid::-webkit-scrollbar-thumb:hover,
+.sip-katalog-list::-webkit-scrollbar-thumb:hover,
+.sip-tab-content::-webkit-scrollbar-thumb:hover,
+.sip-sheet-content::-webkit-scrollbar-thumb:hover { background: var(--sip-text-muted); }
+.sip-left, .sip-mid, .sip-katalog-list, .sip-tab-content, .sip-sheet-content {
+  scrollbar-width: thin; scrollbar-color: var(--sip-border) transparent;
+}
+
 /* ── Dark Mode — Zentra-inspired ───────────────────── */
 [data-theme="dark"] {
   --sip-accent: #3B82F6;
