@@ -192,7 +192,6 @@ function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onL
           <LangToggle lang={lang} setLang={setLang} />
         </div>
         <div className="sip-login-icon"><img src={BEKILLI_LOGO} alt="Bekilli Group" style={{height:60,objectFit:"contain"}}/></div>
-        <h1 className="sip-login-title">{t.pin_title}</h1>
         <p className="sip-login-sub">{t.pin_sub}</p>
         <div className="sip-login-form">
           <input
