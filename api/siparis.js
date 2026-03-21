@@ -724,9 +724,30 @@ export default async function handler(req, res) {
       if (req.method === 'GET') {
         const veri = req.query.veri;
         if (veri === 'musteriler') {
-          // Müşteri listesini oku (PIN hash'ler dahil — sadece admin görebilir)
           const musteriler = await gistReadFile(SIP_GIST, 'musteriler.json');
           return res.status(200).json({ ok: true, musteriler: musteriler || [] });
+        }
+        if (veri === 'fiyat' && req.query.musteri) {
+          // Belirli müşterinin portal fiyatlarını oku
+          const fData = await gistReadFile(SIP_GIST, `fiyat_${req.query.musteri}.json`);
+          return res.status(200).json({ ok: true, fiyatlar: fData || {} });
+        }
+        if (veri === 'tum_fiyatlar') {
+          // Tüm portal müşterilerinin fiyatlarını tek seferde oku
+          const gist = await gistRead(SIP_GIST);
+          const files = gist.files || {};
+          const tumu = {};
+          for (const [filename, file] of Object.entries(files)) {
+            if (!filename.startsWith('fiyat_')) continue;
+            const mid = filename.replace('fiyat_', '').replace('.json', '');
+            let content = file.content;
+            if (file.truncated && file.raw_url) {
+              const raw = await fetch(file.raw_url, { headers: gistHeaders });
+              if (raw.ok) content = await raw.text();
+            }
+            try { tumu[mid] = JSON.parse(content); } catch { /* bozuk atla */ }
+          }
+          return res.status(200).json({ ok: true, fiyatlar: tumu });
         }
         // Varsayılan: siparişleri oku
         const sonuc = await adminSiparislerOku();
