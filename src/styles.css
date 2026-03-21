@@ -227,29 +227,40 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-sgroup-label.status-tamamlandi { background: var(--sip-success-bg); color: var(--sip-success-text); }
 .sip-sgroup-label.status-iptal { background: var(--sip-disabled-bg); color: var(--sip-disabled); }
 
-.sip-scard { background: var(--sip-bg); border-radius: var(--sip-radius-md); border: 1px solid var(--sip-border-light); padding: 10px 12px; margin-bottom: 6px; }
-.sip-scard.status-tamamlandi { opacity: 0.7; }
-.sip-scard.status-iptal { opacity: 0.5; }
-.sip-sc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.sip-sc-info { flex: 1; min-width: 0; }
-.sip-sc-name { font-size: 13px; font-weight: 600; }
-.sip-sc-code { font-size: 10px; color: var(--sip-text-muted); font-family: var(--sip-mono); margin-top: 1px; }
-.sip-sc-right { text-align: right; flex-shrink: 0; }
-.sip-sc-tarih { font-size: 11px; color: var(--sip-text-muted); }
-.sip-sc-fiyat { font-size: 13px; font-weight: 600; display: block; margin-top: 1px; }
-.sip-sc-bottom { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sip-sc-adet { font-size: 13px; }
-.sip-karsilanan { color: var(--sip-accent); font-weight: 600; }
-.sip-sc-not { font-size: 12px; color: var(--sip-text-muted); font-style: italic; }
-.sip-sc-actions { margin-top: 8px; display: flex; gap: 6px; }
-.sip-sc-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; border-radius: 20px; cursor: pointer; font-family: inherit; border: 1px solid var(--sip-border); background: var(--sip-bg); box-shadow: var(--sip-shadow-sm); }
-.sip-sc-btn.edit { color: var(--sip-accent); }
-.sip-sc-btn.del { color: var(--sip-danger); border-color: var(--sip-danger-border); }
-.sip-sc-btn.del:hover { background: var(--sip-danger-bg); }
-.sip-sc-edit { display: flex; gap: 4px; align-items: center; }
-.sip-sc-edit-input { width: 60px; padding: 4px; font-size: 13px; border: 1px solid var(--sip-accent); border-radius: var(--sip-radius-sm); text-align: center; outline: none; font-family: inherit; }
-.sip-sc-edit-save { padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--sip-accent); color: var(--sip-bg); border: none; border-radius: 20px; cursor: pointer; font-family: inherit; box-shadow: var(--sip-shadow-sm); }
-.sip-sc-edit-cancel { padding: 6px 16px; font-size: 12px; background: none; border: 1px solid var(--sip-border); border-radius: 20px; color: var(--sip-text-muted); cursor: pointer; font-family: inherit; box-shadow: var(--sip-shadow-sm); }
+/* ── Grup kartı ── */
+.sip-grup-card { background: var(--sip-bg); border-radius: var(--sip-radius-md); border: 1px solid var(--sip-border-light); margin-bottom: 6px; overflow: hidden; }
+.sip-grup-card.status-tamamlandi { opacity: 0.7; }
+.sip-grup-card.status-iptal { opacity: 0.5; }
+.sip-gc-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+.sip-gc-header:active { background: var(--sip-bg-subtle); }
+.sip-gc-left { display: flex; align-items: center; gap: 10px; }
+.sip-gc-count { font-size: 12px; font-weight: 700; color: var(--sip-text); }
+.sip-gc-adet { font-size: 11px; color: var(--sip-text-muted); }
+.sip-gc-right { display: flex; align-items: center; gap: 8px; }
+.sip-gc-tarih { font-size: 10px; color: var(--sip-text-muted); }
+.sip-gc-chevron { color: var(--sip-text-muted); transition: transform 0.2s; display: flex; }
+.sip-gc-chevron.open { transform: rotate(180deg); }
+
+/* ── Kalem listesi (içerik) ── */
+.sip-gc-kalemler { border-top: 1px solid var(--sip-border-faint); padding: 4px 0; }
+.sip-gc-del { display: block; width: calc(100% - 24px); margin: 4px 12px 8px; padding: 6px; font-size: 11px; font-weight: 600; color: var(--sip-danger); background: var(--sip-danger-bg); border: 1px solid var(--sip-danger-border); border-radius: var(--sip-radius-sm); cursor: pointer; font-family: inherit; }
+
+/* ── Kompakt kalem satırı ── */
+.sip-kalem-row { display: flex; align-items: center; gap: 6px; padding: 4px 12px; min-height: 32px; }
+.sip-kalem-row:not(:last-child) { border-bottom: 1px solid var(--sip-border-faint); }
+.sip-kr-info { flex: 1; min-width: 0; overflow: hidden; }
+.sip-kr-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sip-kr-code { font-size: 9px; color: var(--sip-text-muted); font-family: var(--sip-mono); }
+.sip-kr-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 12px; }
+.sip-kr-karsi { color: var(--sip-accent); font-weight: 600; }
+.sip-kr-adet { font-weight: 600; }
+.sip-kr-fiyat { font-size: 10px; color: var(--sip-text-muted); }
+.sip-kr-actions { display: flex; gap: 3px; flex-shrink: 0; }
+.sip-kr-btn { padding: 3px 10px; font-size: 10px; font-weight: 600; border-radius: 14px; cursor: pointer; font-family: inherit; border: 1px solid var(--sip-border); background: var(--sip-bg); color: var(--sip-accent); }
+.sip-kr-btn.del { color: var(--sip-danger); border-color: var(--sip-danger-border); }
+.sip-kr-btn.del:hover { background: var(--sip-danger-bg); }
+.sip-kr-edit { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
+.sip-kr-edit-input { width: 50px; padding: 3px; font-size: 16px; border: 1px solid var(--sip-accent); border-radius: var(--sip-radius-sm); text-align: center; outline: none; font-family: inherit; }
 
 /* ── Hesabım Tab ──────────────────────────────────── */
 .sip-hesabim-tab { padding: 10px 12px; }
@@ -279,13 +290,13 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-left { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-mid { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-right { background: rgba(255,255,255,0.03); }
-[data-theme="dark"] .sip-scard { background: rgba(255,255,255,0.04); backdrop-filter: var(--sip-glass); border-color: var(--sip-glass-border); }
+[data-theme="dark"] .sip-grup-card { background: rgba(255,255,255,0.04); backdrop-filter: var(--sip-glass); border-color: var(--sip-glass-border); }
 [data-theme="dark"] .sip-search,
 [data-theme="dark"] .sip-ac-input,
 [data-theme="dark"] .sip-nr-input,
 [data-theme="dark"] .sip-nr-adet,
 [data-theme="dark"] .sip-cr-adet,
-[data-theme="dark"] .sip-sc-edit-input { background: rgba(255,255,255,0.06); color: var(--sip-text); border-color: rgba(255,255,255,0.1); }
+[data-theme="dark"] .sip-kr-edit-input { background: rgba(255,255,255,0.06); color: var(--sip-text); border-color: rgba(255,255,255,0.1); }
 [data-theme="dark"] .sip-ac-dropdown { background: rgba(10,14,21,0.95); backdrop-filter: blur(16px); border-color: rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
 [data-theme="dark"] .sip-ac-item:hover { background: rgba(59,130,246,0.12); }
 [data-theme="dark"] .sip-katalog-item:hover { background: rgba(59,130,246,0.1); }
@@ -302,7 +313,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-tab.active { color: #fff; background: #3B82F6; }
 [data-theme="dark"] .sip-lang-toggle { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: var(--sip-text-muted); }
 [data-theme="dark"] .sip-logout-btn { border-color: rgba(255,255,255,0.1); color: var(--sip-text-muted); }
-[data-theme="dark"] .sip-sc-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+[data-theme="dark"] .sip-kr-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
 [data-theme="dark"] .sip-sgroup-label.status-beklemede { background: rgba(161,98,7,0.15); color: #FCD34D; }
 [data-theme="dark"] .sip-sgroup-label.status-kismi { background: rgba(29,78,216,0.15); color: #93C5FD; }
 [data-theme="dark"] .sip-sgroup-label.status-tamamlandi { background: rgba(21,128,61,0.15); color: #86EFAC; }
@@ -343,6 +354,9 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
   .sip-left { display: none; }
   .sip-mid { grid-column: 1; padding-bottom: 64px; } /* bottom bar için yer aç */
   .sip-right { display: none; } /* Desktop sağ panel gizli — sheet kullanılır */
+
+  /* iOS zoom fix: font-size < 16px olan input'lar auto-zoom tetikler */
+  .sip-search { font-size: 16px; padding: 10px 12px; }
 
   .sip-header-logo { font-size: 14px; }
   .sip-header-customer { font-size: 12px; }
@@ -434,6 +448,18 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
   .sip-cart-header { grid-template-columns: 50px 1fr 60px 70px 24px; }
   .sip-cart-row { grid-template-columns: 50px 1fr 60px 70px 24px; padding: 5px 8px; }
   .sip-cr-adet { font-size: 12px; }
+}
+
+/* ── Landscape = Desktop layout ─────────────────────── */
+@media (max-width: 900px) and (orientation: landscape) {
+  .sip-body { grid-template-columns: 180px minmax(0, 1fr); }
+  .sip-left { display: none; }
+  .sip-mid { display: flex; padding-bottom: 0; }
+  .sip-right { display: flex !important; }
+  .sip-mobile-bar { display: none !important; }
+  .sip-sheet-backdrop { display: none !important; }
+  .sip-sheet { display: none !important; }
+  .sip-filter-toggle { display: flex; }
 }
 
 /* ── Animations ────────────────────────────────────── */
