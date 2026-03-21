@@ -50,31 +50,6 @@
   --sip-mono: 'SF Mono', ui-monospace, Menlo, monospace;
 }
 
-/* ── Scrollbar — ince, tema uyumlu ────────────────── */
-.sip-left::-webkit-scrollbar,
-.sip-mid::-webkit-scrollbar,
-.sip-katalog-list::-webkit-scrollbar,
-.sip-tab-content::-webkit-scrollbar,
-.sip-sheet-content::-webkit-scrollbar { width: 4px; }
-.sip-left::-webkit-scrollbar-track,
-.sip-mid::-webkit-scrollbar-track,
-.sip-katalog-list::-webkit-scrollbar-track,
-.sip-tab-content::-webkit-scrollbar-track,
-.sip-sheet-content::-webkit-scrollbar-track { background: transparent; }
-.sip-left::-webkit-scrollbar-thumb,
-.sip-mid::-webkit-scrollbar-thumb,
-.sip-katalog-list::-webkit-scrollbar-thumb,
-.sip-tab-content::-webkit-scrollbar-thumb,
-.sip-sheet-content::-webkit-scrollbar-thumb { background: var(--sip-border); border-radius: 4px; }
-.sip-left::-webkit-scrollbar-thumb:hover,
-.sip-mid::-webkit-scrollbar-thumb:hover,
-.sip-katalog-list::-webkit-scrollbar-thumb:hover,
-.sip-tab-content::-webkit-scrollbar-thumb:hover,
-.sip-sheet-content::-webkit-scrollbar-thumb:hover { background: var(--sip-text-muted); }
-.sip-left, .sip-mid, .sip-katalog-list, .sip-tab-content, .sip-sheet-content {
-  scrollbar-width: thin; scrollbar-color: var(--sip-border) transparent;
-}
-
 /* ── Dark Mode — Zentra-inspired ───────────────────── */
 [data-theme="dark"] {
   --sip-accent: #3B82F6;
@@ -245,6 +220,43 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 
 /* ── Takip Tab ────────────────────────────────────── */
 .sip-takip-tab { padding: 10px 12px; }
+
+/* Yenile bar */
+.sip-takip-refresh-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px; padding: 6px 2px;
+  border-bottom: 1px solid var(--sip-border);
+}
+.sip-son-yenileme { font-size: 11px; color: var(--sip-text-muted); }
+.sip-refresh-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px; border: 1px solid var(--sip-border);
+  background: var(--sip-bg-card); color: var(--sip-text-secondary);
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.sip-refresh-btn:hover:not(:disabled) { background: var(--sip-accent); color: #fff; border-color: var(--sip-accent); }
+.sip-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Beklemede bölüm toplam */
+.sip-sgroup-toplam {
+  margin-left: 8px; font-size: 12px; font-weight: 600;
+  opacity: 0.9; letter-spacing: 0;
+}
+
+/* Grup toplam satırı (açılınca altta) */
+.sip-grup-toplam-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px 4px; margin-top: 4px;
+  border-top: 1px solid var(--sip-border);
+  font-size: 12px; color: var(--sip-text-secondary);
+}
+.sip-grup-toplam-val { font-weight: 700; color: var(--sip-text-primary); }
+
+/* Kalem satırı fiyat alanları */
+.sip-kr-birim-fiyat { color: var(--sip-text-muted); font-size: 11px; }
+.sip-kr-x { color: var(--sip-text-muted); font-size: 11px; margin: 0 2px; }
+.sip-kr-fiyat { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+.sip-kr-fiyat-yok { color: var(--sip-text-muted); font-size: 11px; font-style: italic; }
 .sip-sgroup { margin-bottom: 14px; }
 .sip-sgroup-label { font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 20px; margin-bottom: 6px; display: inline-block; }
 .sip-sgroup-label.status-beklemede { background: var(--sip-warning-bg); color: var(--sip-warning-text); }
