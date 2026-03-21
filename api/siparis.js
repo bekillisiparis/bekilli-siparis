@@ -1,5 +1,6 @@
-// /api/siparis.js — Bekilli Sipariş Sistemi Vercel Serverless Function
-// Müşteri: PIN ile auth → sipariş ekle/sil/güncelle/oku
+// /api/siparis.js — Bekilli Sipariş Sistemi Vercel Serverless Function v2.0
+// Müşteri: X-Siparis-PIN ile auth → sipariş ekle/sil/güncelle/oku
+// Admin: X-Admin-PIN ile auth → katalog yayınla, müşteri/fiyat/hesap güncelle, sipariş karşıla/iptal
 // Gist: Katalog (public) + Sipariş (private, müşteri başına dosya)
 
 import { createHash, randomUUID } from 'crypto';
@@ -8,13 +9,17 @@ import { createHash, randomUUID } from 'crypto';
 const TOKEN      = process.env.SIPARIS_GIST_TOKEN;
 const SIP_GIST   = process.env.SIPARIS_GIST_ID;
 const KAT_GIST   = process.env.KATALOG_GIST_ID;
-const ALLOWED_ORIGIN = 'https://bekilli-siparis.vercel.app';
+const ADMIN_PIN_HASH = process.env.ADMIN_PIN_HASH; // SHA-256, Vercel env'de
+const MUSTERI_ORIGIN = 'https://bekilli-siparis.vercel.app';
+const ADMIN_ORIGIN   = 'https://bekilli-stok.vercel.app';
 
 // ── Rate Limit (in-memory, cold start'ta sıfırlanır) ─
 const ipHits = {};
 const IP_LIMIT = 30;      // dakikada max istek
-const IP_BAN_LIMIT = 5;   // hatalı PIN denemesi
+const IP_BAN_LIMIT = 5;   // hatalı PIN denemesi (müşteri)
 const IP_BAN_MINUTES = 15;
+const ADMIN_BAN_LIMIT = 3;   // hatalı admin PIN denemesi (daha sıkı)
+const ADMIN_BAN_MINUTES = 30;
 const ipBans = {};
 
 function rateCheck(ip) {
@@ -37,6 +42,17 @@ function recordFailedPin(ip) {
   ipHits[key] = recent;
   if (recent.length >= IP_BAN_LIMIT) {
     ipBans[ip] = Date.now() + IP_BAN_MINUTES * 60000;
+  }
+}
+
+function recordFailedAdminPin(ip) {
+  const key = `afail_${ip}`;
+  if (!ipHits[key]) ipHits[key] = [];
+  ipHits[key].push(Date.now());
+  const recent = ipHits[key].filter(t => Date.now() - t < 60000);
+  ipHits[key] = recent;
+  if (recent.length >= ADMIN_BAN_LIMIT) {
+    ipBans[ip] = Date.now() + ADMIN_BAN_MINUTES * 60000;
   }
 }
 
@@ -225,14 +241,322 @@ function handleGuncelle(sipData, body) {
 
 // ── CORS Preflight ───────────────────────────────────
 function corsHeaders(origin) {
-  // Development'ta localhost da izin ver
-  const allowed = origin === ALLOWED_ORIGIN || origin?.startsWith('http://localhost');
+  // Müşteri, admin ve development origin'leri
+  const isAllowed = origin === MUSTERI_ORIGIN
+    || origin === ADMIN_ORIGIN
+    || origin?.startsWith('http://localhost');
   return {
-    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': isAllowed ? origin : MUSTERI_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Siparis-PIN',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Siparis-PIN, X-Admin-PIN',
     'Access-Control-Max-Age': '86400',
   };
+}
+
+function isAdminOrigin(origin) {
+  return origin === ADMIN_ORIGIN || origin?.startsWith('http://localhost');
+}
+
+// ── Admin PIN doğrulama ──────────────────────────────
+// GÜVENLİK: Admin PIN hash'i SADECE Vercel env'de (ADMIN_PIN_HASH)
+// musteriler.json'da DEĞİL, client'ta DEĞİL
+async function authenticateAdmin(pin) {
+  if (!ADMIN_PIN_HASH) return false;
+  const hash = await hashPin(pin);
+  return hash === ADMIN_PIN_HASH;
+}
+
+// ── Admin: Katalog Yayınla ──────────────────────────
+// Ana uygulamadan gelen ürün listesini PUBLIC Gist'e yazar
+// Yayınlamadan önce mevcut kataloğu _prev olarak yedekler (K6.15)
+async function adminKatalogYayinla(body) {
+  const { urunler, suppliers, kategoriler } = body;
+  if (!Array.isArray(urunler) || urunler.length === 0) {
+    return { hata: 'Ürün listesi boş', status: 400 };
+  }
+
+  // Ürün validasyonu
+  for (const u of urunler) {
+    if (!u.kod || !u.ad) return { hata: `Ürün eksik: kod ve ad zorunlu (${u.kod || '?'})`, status: 400 };
+    // XSS temizleme (K6.9)
+    u.kod = stripHtml(u.kod);
+    u.ad = stripHtml(u.ad);
+    u.parcaNo = stripHtml(u.parcaNo || '');
+    u.supplier = stripHtml(u.supplier || '');
+    u.marka = stripHtml(u.marka || '');
+    u.kategori = stripHtml(u.kategori || '');
+  }
+
+  // Mevcut kataloğu yedekle (K6.15 — yayınlama yedeği)
+  try {
+    const mevcutKatalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
+    if (mevcutKatalog) {
+      await gistWriteFile(KAT_GIST, '_prev_katalog.json', mevcutKatalog);
+    }
+  } catch (err) {
+    console.error('Katalog yedekleme hatası (devam ediliyor):', err.message);
+    // Yedekleme başarısız olsa da yayınlamaya devam et — veri kaybı riski yok
+  }
+
+  const katalog = {
+    guncelleme: new Date().toISOString(),
+    apiVersion: '2.0',
+    suppliers: (suppliers || []).map(s => stripHtml(s)),
+    kategoriler: (kategoriler || []).map(k => stripHtml(k)),
+    urunler,
+  };
+
+  await gistWriteFile(KAT_GIST, 'katalog.json', katalog);
+
+  return {
+    ok: true,
+    urunSayisi: urunler.length,
+    supplierSayisi: katalog.suppliers.length,
+    kategoriSayisi: katalog.kategoriler.length,
+  };
+}
+
+// ── Admin: Müşteri Listesi Güncelle ─────────────────
+// PIN hash'leri PRIVATE Gist'te, admin ekler/günceller/siler
+async function adminMusterilerGuncelle(body) {
+  const { musteriler } = body;
+  if (!Array.isArray(musteriler)) {
+    return { hata: 'Müşteri listesi geçersiz', status: 400 };
+  }
+
+  // Validasyon
+  for (const m of musteriler) {
+    if (!m.id || !m.ad || !m.pinHash) {
+      return { hata: `Müşteri eksik: id, ad, pinHash zorunlu (${m.id || '?'})`, status: 400 };
+    }
+    m.ad = stripHtml(m.ad);
+    // pinHash zaten hex string, XSS riski yok ama validate edelim
+    if (!/^[a-f0-9]{64}$/.test(m.pinHash)) {
+      return { hata: `Geçersiz PIN hash formatı: ${m.id}`, status: 400 };
+    }
+  }
+
+  // ID tekrarı kontrolü
+  const ids = musteriler.map(m => m.id);
+  if (new Set(ids).size !== ids.length) {
+    return { hata: 'Müşteri ID\'leri benzersiz olmalı', status: 400 };
+  }
+
+  await gistWriteFile(SIP_GIST, 'musteriler.json', musteriler);
+
+  return { ok: true, musteriSayisi: musteriler.length };
+}
+
+// ── Admin: Müşteri Fiyat Güncelle ───────────────────
+// Müşteriye özel fiyatları PRIVATE Gist'e yazar
+async function adminFiyatGuncelle(body) {
+  const { musteriId, fiyatlar, oncekiFiyatlar } = body;
+  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+  if (!fiyatlar || typeof fiyatlar !== 'object') {
+    return { hata: 'fiyatlar objesi gerekli', status: 400 };
+  }
+
+  // K6.11: Alış maliyeti, kâr marjı bilgisi ASLA yazılmamalı
+  // Sadece satış fiyatı + döviz + sabit flag kabul edilir
+  const temizFiyatlar = {};
+  for (const [kod, val] of Object.entries(fiyatlar)) {
+    if (!val || typeof val !== 'object') continue;
+    temizFiyatlar[stripHtml(kod)] = {
+      fiyat: parseFloat(val.fiyat) || 0,
+      doviz: stripHtml(val.doviz || 'USD'),
+      sabit: !!val.sabit,
+    };
+  }
+
+  const data = {
+    guncelleme: new Date().toISOString(),
+    fiyatlar: temizFiyatlar,
+    oncekiFiyatlar: oncekiFiyatlar || {},
+  };
+
+  await gistWriteFile(SIP_GIST, `fiyat_${stripHtml(musteriId)}.json`, data);
+
+  return { ok: true, fiyatSayisi: Object.keys(temizFiyatlar).length };
+}
+
+// ── Admin: Hesap Güncelle ───────────────────────────
+// Bakiye, açık faturalar, ödeme geçmişi, sipariş geçmişi
+// K6.11: SADECE satış fiyatları — alış maliyeti/kâr marjı ASLA
+async function adminHesapGuncelle(body) {
+  const { musteriId, bakiye, acikFaturalar, sonOdemeler, sipariGecmisi, sikAlinanlar } = body;
+  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+
+  const data = {
+    guncelleme: new Date().toISOString(),
+  };
+
+  // Bakiye
+  if (bakiye && typeof bakiye === 'object') {
+    data.bakiye = {
+      toplamBorc: parseFloat(bakiye.toplamBorc) || 0,
+      toplamAlacak: parseFloat(bakiye.toplamAlacak) || 0,
+      net: parseFloat(bakiye.net) || 0,
+      doviz: stripHtml(bakiye.doviz || 'USD'),
+    };
+  }
+
+  // Açık faturalar — K6.11 kontrolü
+  if (Array.isArray(acikFaturalar)) {
+    data.acikFaturalar = acikFaturalar.map(f => {
+      const temiz = {
+        no: stripHtml(f.no || ''),
+        tarih: f.tarih || '',
+        tutar: parseFloat(f.tutar) || 0,
+        odenen: parseFloat(f.odenen) || 0,
+        kalan: parseFloat(f.kalan) || 0,
+        doviz: stripHtml(f.doviz || 'USD'),
+      };
+      // Kalemler — SADECE satış fiyatı (birimFiyat), maliyet ASLA
+      if (Array.isArray(f.kalemler)) {
+        temiz.kalemler = f.kalemler.map(k => ({
+          urunKod: stripHtml(k.urunKod || ''),
+          urunAd: stripHtml(k.urunAd || ''),
+          adet: parseInt(k.adet, 10) || 0,
+          birimFiyat: parseFloat(k.birimFiyat) || 0,
+          toplam: parseFloat(k.toplam) || 0,
+          // maliyet, alisFiyati, kar, marj gibi alanlar KASITLI OLARAK YOK
+        }));
+      }
+      return temiz;
+    });
+  }
+
+  // Son ödemeler
+  if (Array.isArray(sonOdemeler)) {
+    data.sonOdemeler = sonOdemeler.map(o => ({
+      tarih: o.tarih || '',
+      tutar: parseFloat(o.tutar) || 0,
+      doviz: stripHtml(o.doviz || 'USD'),
+      yontem: stripHtml(o.yontem || ''),
+      aciklama: stripHtml(o.aciklama || ''),
+    }));
+  }
+
+  // Sipariş geçmişi
+  if (Array.isArray(sipariGecmisi)) {
+    data.sipariGecmisi = sipariGecmisi.map(s => ({
+      tarih: s.tarih || '',
+      kalemler: Array.isArray(s.kalemler) ? s.kalemler.map(k => ({
+        urunKod: stripHtml(k.urunKod || ''),
+        urunAd: stripHtml(k.urunAd || ''),
+        adet: parseInt(k.adet, 10) || 0,
+        // birimFiyat ve toplam SADECE satış fiyatı
+        ...(k.birimFiyat !== undefined ? { birimFiyat: parseFloat(k.birimFiyat) || 0 } : {}),
+        ...(k.toplam !== undefined ? { toplam: parseFloat(k.toplam) || 0 } : {}),
+      })) : [],
+      toplamTutar: parseFloat(s.toplamTutar) || 0,
+      doviz: stripHtml(s.doviz || 'USD'),
+    }));
+  }
+
+  // Sık alınanlar
+  if (Array.isArray(sikAlinanlar)) {
+    data.sikAlinanlar = sikAlinanlar.map(k => stripHtml(k)).slice(0, 50);
+  }
+
+  await gistWriteFile(SIP_GIST, `hesap_${stripHtml(musteriId)}.json`, data);
+
+  return { ok: true };
+}
+
+// ── Admin: Tüm Siparişleri Oku ──────────────────────
+// Tüm müşterilerin siparişlerini getirir (Gelen Siparişler paneli için)
+async function adminSiparislerOku() {
+  // Sipariş Gist'teki tüm dosyaları oku
+  const gist = await gistRead(SIP_GIST);
+  const files = gist.files || {};
+  const tumu = [];
+
+  for (const [filename, file] of Object.entries(files)) {
+    if (!filename.startsWith('siparisler_')) continue;
+
+    let content = file.content;
+    // Truncated kontrolü
+    if (file.truncated && file.raw_url) {
+      const raw = await fetch(file.raw_url, { headers: gistHeaders });
+      if (raw.ok) content = await raw.text();
+    }
+
+    try {
+      const data = JSON.parse(content);
+      if (data?.siparisler?.length) {
+        tumu.push({
+          musteriId: data.musteriId,
+          musteriAd: data.musteriAd || filename.replace('siparisler_', '').replace('.json', ''),
+          siparisler: data.siparisler,
+          sonGuncelleme: data.sonGuncelleme,
+        });
+      }
+    } catch { /* bozuk dosya atla */ }
+  }
+
+  return { ok: true, musteriler: tumu };
+}
+
+// ── Admin: Sipariş Karşıla ──────────────────────────
+// Müşterinin siparişinde karsilanan miktarını günceller
+async function adminSiparisKarsila(body) {
+  const { musteriId, siparisId, karsilanan, not } = body;
+  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
+
+  const miktar = parseInt(karsilanan, 10);
+  if (!Number.isInteger(miktar) || miktar < 0) {
+    return { hata: 'Geçerli karşılanan miktarı giriniz', status: 400 };
+  }
+
+  const sipData = await readSiparisler(musteriId);
+  const sip = sipData.siparisler.find(s => s.id === siparisId);
+  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+
+  if (sip.durum === 'iptal') return { hata: 'İptal edilmiş sipariş karşılanamaz', status: 400 };
+  if (miktar > sip.adet) return { hata: `Karşılanan (${miktar}) sipariş adedinden (${sip.adet}) fazla olamaz`, status: 400 };
+
+  // Karşılama kaydı
+  sip.karsilanan = miktar;
+  sip.karsilamalar = sip.karsilamalar || [];
+  sip.karsilamalar.push({
+    tarih: new Date().toISOString(),
+    miktar,
+    not: stripHtml(not || ''),
+  });
+
+  // Durum güncelle
+  if (miktar >= sip.adet) {
+    sip.durum = 'tamamlandi';
+  } else if (miktar > 0) {
+    sip.durum = 'kismi';
+  }
+
+  await writeSiparisler(musteriId, sipData);
+
+  return { ok: true, siparis: sip };
+}
+
+// ── Admin: Sipariş İptal ────────────────────────────
+async function adminSiparisIptal(body) {
+  const { musteriId, siparisId, sebep } = body;
+  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
+
+  const sipData = await readSiparisler(musteriId);
+  const sip = sipData.siparisler.find(s => s.id === siparisId);
+  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+
+  if (sip.durum === 'tamamlandi') return { hata: 'Tamamlanmış sipariş iptal edilemez', status: 400 };
+
+  sip.durum = 'iptal';
+  sip.iptalSebep = stripHtml(sebep || '');
+  sip.iptalTarih = new Date().toISOString();
+
+  await writeSiparisler(musteriId, sipData);
+
+  return { ok: true, siparis: sip };
 }
 
 // ── Ana Handler ──────────────────────────────────────
@@ -256,10 +580,10 @@ export default async function handler(req, res) {
   if (rl === 'limited') return res.status(429).json({ hata: 'Çok fazla istek. Lütfen bekleyin.' });
 
   // Health check (PIN'siz GET, parametresiz)
-  if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.query.katalog) {
+  if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.headers['x-admin-pin'] && !req.query.katalog) {
     return res.status(200).json({
       durum: 'aktif',
-      versiyon: '1.3.0',
+      versiyon: '2.0.0',
       zaman: new Date().toISOString(),
     });
   }
@@ -272,7 +596,10 @@ export default async function handler(req, res) {
       const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
       return res.status(200).json({
         urunler: katalog?.urunler || [],
+        suppliers: katalog?.suppliers || [],
+        kategoriler: katalog?.kategoriler || [],
         guncelleme: katalog?.guncelleme || null,
+        apiVersion: katalog?.apiVersion || '1.0',
       });
     } catch (err) {
       console.error('Katalog okuma hatası:', err.message);
@@ -280,7 +607,86 @@ export default async function handler(req, res) {
     }
   }
 
-  // PIN doğrulama
+  // ══════════════════════════════════════════════════
+  // ══ ADMIN ENDPOINT'LERİ ══════════════════════════
+  // ══════════════════════════════════════════════════
+  // Admin PIN ayrı header: X-Admin-PIN
+  // CORS: Sadece bekilli-stok.vercel.app (+ localhost dev)
+  // Rate limit: 3 hatalı → 30 dk ban (müşteriden sıkı)
+  const adminPin = req.headers['x-admin-pin'];
+  if (adminPin) {
+    // Origin kontrolü — admin sadece ana uygulamadan
+    if (!isAdminOrigin(origin)) {
+      return res.status(403).json({ hata: 'Bu işlem bu kaynaktan yapılamaz' });
+    }
+
+    // Admin PIN doğrulama
+    let isAdmin;
+    try {
+      isAdmin = await authenticateAdmin(adminPin);
+    } catch (err) {
+      console.error('Admin auth hatası:', err.message);
+      return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası' });
+    }
+
+    if (!isAdmin) {
+      recordFailedAdminPin(ip);
+      return res.status(401).json({ hata: 'Geçersiz admin PIN' });
+    }
+
+    try {
+      // ── Admin GET: Siparişleri oku ──────────────────
+      if (req.method === 'GET') {
+        const sonuc = await adminSiparislerOku();
+        return res.status(200).json(sonuc);
+      }
+
+      // ── Admin POST: İşlem yürüt ────────────────────
+      if (req.method === 'POST') {
+        const body = req.body || {};
+        const islem = body.islem;
+
+        const adminIslemler = {
+          katalog_yayinla: adminKatalogYayinla,
+          musteriler_guncelle: adminMusterilerGuncelle,
+          fiyat_guncelle: adminFiyatGuncelle,
+          hesap_guncelle: adminHesapGuncelle,
+          siparis_karsila: adminSiparisKarsila,
+          siparis_iptal: adminSiparisIptal,
+        };
+
+        if (!adminIslemler[islem]) {
+          return res.status(400).json({
+            hata: `Geçersiz admin işlemi. Beklenen: ${Object.keys(adminIslemler).join(', ')}`,
+          });
+        }
+
+        const sonuc = await adminIslemler[islem](body);
+        if (sonuc.hata) return res.status(sonuc.status || 400).json({ hata: sonuc.hata });
+        return res.status(200).json(sonuc);
+      }
+
+      return res.status(405).json({ hata: 'Desteklenmeyen metod' });
+
+    } catch (err) {
+      console.error('Admin işlem hatası:', err.message);
+      // Retry: 1 kez, 2 sn sonra (GitHub 5xx için)
+      if (err.message.includes('5')) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          if (req.method === 'GET') {
+            const sonuc = await adminSiparislerOku();
+            return res.status(200).json(sonuc);
+          }
+        } catch { /* retry de başarısızsa aşağıya düş */ }
+      }
+      return res.status(502).json({ hata: 'Admin işlemi sırasında hata oluştu. Tekrar deneyin.' });
+    }
+  }
+
+  // ══════════════════════════════════════════════════
+  // ══ MÜŞTERİ ENDPOINT'LERİ ═══════════════════════
+  // ══════════════════════════════════════════════════
   const pin = req.headers['x-siparis-pin'];
   if (!pin) return res.status(401).json({ hata: 'PIN gerekli' });
 
