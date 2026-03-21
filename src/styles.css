@@ -133,7 +133,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 /* ── Sol: Filtreler ───────────────────────────────── */
 .sip-left { background: var(--sip-bg); border-right: 1px solid var(--sip-border-light); padding: 8px 0; overflow-y: auto; }
 .sip-filter-section { padding: 0 6px; margin-bottom: 4px; }
-.sip-filter-title { font-size: 9px; font-weight: 600; color: var(--sip-text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 6px 4px; }
+.sip-filter-title { font-size: 10px; font-weight: 700; color: var(--sip-accent); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 6px 4px; }
 .sip-filter-item { padding: 4px 6px; font-size: 11px; color: var(--sip-text-dim); border-radius: var(--sip-radius-sm); cursor: pointer; transition: background 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sip-filter-item:hover:not(.active) { background: var(--sip-bg-page); }
 .sip-filter-item.active { background: var(--sip-accent-bg); color: var(--sip-accent); font-weight: 600; }
