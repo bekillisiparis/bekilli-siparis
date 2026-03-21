@@ -312,6 +312,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-tab:hover { background: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-tab.active { color: #fff; background: #3B82F6; }
 [data-theme="dark"] .sip-lang-toggle { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: var(--sip-text-muted); }
+[data-theme="dark"] .sip-theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); color: #B0B8C9; }
 [data-theme="dark"] .sip-logout-btn { border-color: rgba(255,255,255,0.1); color: var(--sip-text-muted); }
 [data-theme="dark"] .sip-kr-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
 [data-theme="dark"] .sip-sgroup-label.status-beklemede { background: rgba(161,98,7,0.15); color: #FCD34D; }
@@ -320,7 +321,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-sgroup-label.status-iptal { background: rgba(255,255,255,0.04); color: #4E576A; }
 
 /* Theme toggle button */
-.sip-theme-toggle { padding: 6px 10px; font-size: 14px; background: none; border: 1px solid var(--sip-border); border-radius: 20px; cursor: pointer; line-height: 1; display: flex; align-items: center; box-shadow: var(--sip-shadow-sm); }
+.sip-theme-toggle { padding: 6px 10px; font-size: 14px; background: var(--sip-bg-page); border: 1px solid var(--sip-border); border-radius: 20px; cursor: pointer; line-height: 1; display: flex; align-items: center; box-shadow: var(--sip-shadow-sm); color: var(--sip-text-muted); }
 .sip-theme-toggle:hover { background: var(--sip-bg-subtle); }
 
 /* ── Mobile-only elements (hidden on desktop) ──────── */
