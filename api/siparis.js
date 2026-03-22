@@ -325,7 +325,7 @@ async function getAdminHash() {
   try {
     const stored = await gistReadFile(SIP_GIST, 'admin_config.json');
     if (stored?.pinHash) { _cachedAdminHash = stored.pinHash; return _cachedAdminHash; }
-  } catch { /* Gist'te yoksa env var kullan */ }
+  } catch (e) { console.warn("getAdminHash Gist okunamadı, env fallback:", e.message); }
   _cachedAdminHash = ADMIN_PIN_HASH || null;
   return _cachedAdminHash;
 }
@@ -583,7 +583,7 @@ async function adminSiparislerOku() {
           sonGuncelleme: data.sonGuncelleme,
         });
       }
-    } catch { /* bozuk dosya atla */ }
+    } catch (e) { console.warn("Sipariş dosyası parse hatası:", e.message); }
   }
 
   return { ok: true, musteriler: tumu };
@@ -1050,7 +1050,7 @@ export default async function handler(req, res) {
               const raw = await fetch(file.raw_url, { headers: gistHeaders });
               if (raw.ok) content = await raw.text();
             }
-            try { tumu[mid] = JSON.parse(content); } catch { /* bozuk atla */ }
+            try { tumu[mid] = JSON.parse(content); } catch (e) { console.warn("Fiyat dosyası parse hatası:", mid, e.message); }
           }
           return res.status(200).json({ ok: true, fiyatlar: tumu });
         }
@@ -1103,7 +1103,7 @@ export default async function handler(req, res) {
             const sonuc = await adminSiparislerOku();
             return res.status(200).json(sonuc);
           }
-        } catch { /* retry de başarısızsa aşağıya düş */ }
+        } catch (e) { console.warn("Admin retry de başarısız:", e.message); }
       }
       return res.status(502).json({ hata: 'Admin işlemi sırasında hata oluştu. Tekrar deneyin.' });
     }
@@ -1195,7 +1195,7 @@ export default async function handler(req, res) {
           const sipData = await readSiparisler(musteriId);
           return res.status(200).json({ musteriId, musteriAd, siparisler: (sipData.siparisler || []).map(s => ({ ...s, durum: deriveDurum(s.kalemler || [], s.durumOverride) })) });
         }
-      } catch { /* retry de başarısızsa aşağıya düş */ }
+      } catch (e) { console.warn("Müşteri retry de başarısız:", e.message); }
     }
     return res.status(502).json({ hata: 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.' });
   }
