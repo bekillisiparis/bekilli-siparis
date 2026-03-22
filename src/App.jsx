@@ -48,7 +48,7 @@ const LANG = {
     sepetten_sil: 'Sil', adet_gir: 'Ad.',
     ekle_placeholder: 'Parça no veya ürün adı yazın...',
     // Takip
-    beklemede: 'Beklemede', kismi: 'Kısmi',
+    beklemede: 'Beklemede', kismi: 'Kısmi', hazirlaniyor: 'Hazırlanıyor',
     tamamlandi: 'Tamamlandı', iptal_durum: 'İptal',
     karsilanan: 'karşılandı', bos_siparis: 'Henüz sipariş yok',
     sil: 'Sil', guncelle: 'Güncelle', iptal_btn: 'İptal',
@@ -79,7 +79,7 @@ const LANG = {
     gonderildi: 'orders sent',
     sepetten_sil: 'Remove', adet_gir: 'Qty',
     ekle_placeholder: 'Type part no or product name...',
-    beklemede: 'Pending', kismi: 'Partial',
+    beklemede: 'Pending', kismi: 'Partial', hazirlaniyor: 'Preparing',
     tamamlandi: 'Completed', iptal_durum: 'Cancelled',
     karsilanan: 'fulfilled', bos_siparis: 'No orders yet',
     sil: 'Remove', guncelle: 'Update', iptal_btn: 'Cancel',
@@ -342,7 +342,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
     return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
 
-  const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi').length;
+  const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi' || s.durum === 'hazirlaniyor').length;
 
   return (
     <div className="sip-app">
@@ -788,6 +788,7 @@ function formatToplamStr(map, bilinmeyenVar) {
 function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil, onRefresh, sonYenileme }) {
   const [refreshing, setRefreshing] = useState(false);
   const beklemede = siparisler.filter(s => s.durum === 'beklemede');
+  const hazirlaniyor = siparisler.filter(s => s.durum === 'hazirlaniyor');
   const kismi = siparisler.filter(s => s.durum === 'kismi');
   const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
   const iptal = siparisler.filter(s => s.durum === 'iptal');
@@ -816,6 +817,9 @@ function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, o
       {siparisler.length === 0 && <div className="sip-empty">{t.bos_siparis}</div>}
       {beklemede.length > 0 && (
         <SiparisGrupList label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} showToplamBanner onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
+      )}
+      {hazirlaniyor.length > 0 && (
+        <SiparisGrupList label={t.hazirlaniyor} status="hazirlaniyor" items={hazirlaniyor} t={t} fiyatlar={fiyatlar} busy={busy} />
       )}
       {kismi.length > 0 && (
         <SiparisGrupList label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
@@ -887,6 +891,7 @@ function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, 
           {kalemler.map(k => (
             <KalemRow key={k.id} k={k} grupId={grup.id} t={t} fiyat={fiyatlar[k.urunKod]}
               editable={editable} busy={busy} onGuncelle={onKalemGuncelle} onSil={onKalemSil}
+              karsilamalar={grup.karsilamalar}
             />
           ))}
           {grupToplamStr && (
@@ -906,7 +911,7 @@ function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, 
   );
 }
 
-function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil }) {
+function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, karsilamalar }) {
   const [editMode, setEditMode] = useState(false);
   const [yeniAdet, setYeniAdet] = useState(String(k.adet));
 
@@ -918,6 +923,12 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil }) {
     setEditMode(false);
   }
 
+  // B2: Karşılama fiyatı (son karşılamadan)
+  const kalemKarsilamalar = (karsilamalar || []).filter(x => x.kalemId === k.id && x.miktar > 0);
+  const sonKarsilama = kalemKarsilamalar.length > 0 ? kalemKarsilamalar[kalemKarsilamalar.length - 1] : null;
+  // M11: Muadil bilgisi
+  const muadilKarsilama = kalemKarsilamalar.find(x => x.muadilKod);
+
   const satirToplamStr = fiyat && fiyat.fiyat
     ? (() => {
         const sym = fiyat.doviz === 'USD' ? '$' : fiyat.doviz === 'EUR' ? '€' : fiyat.doviz === 'TRY' ? '₺' : (fiyat.doviz + ' ');
@@ -927,18 +938,50 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil }) {
       })()
     : null;
 
+  // B2: Karşılama fiyatı gösterimi (fiyat katalogda yoksa karşılamadaki fiyatı göster)
+  const karsilamaFiyatStr = !satirToplamStr && sonKarsilama?.fiyat
+    ? (() => {
+        const sym = sonKarsilama.doviz === 'USD' ? '$' : sonKarsilama.doviz === 'EUR' ? '€' : (sonKarsilama.doviz + ' ');
+        return `${sym}${sonKarsilama.fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      })()
+    : null;
+
   return (
     <div className="sip-kalem-row">
       <div className="sip-kr-info">
         <span className="sip-kr-name">{k.urunAd}</span>
         <span className="sip-kr-code">{k.urunKod}</span>
+        {/* M4: Hazırlanıyor badge */}
+        {(k.hazirlanan || 0) > 0 && k.karsilanan < k.adet && (
+          <span style={{display:"inline-block",fontSize:9,fontWeight:700,color:"#7C3AED",background:"rgba(168,85,247,0.1)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
+            🔧 {k.hazirlanan} hazırlanıyor
+          </span>
+        )}
+        {/* M11: Muadil bilgisi */}
+        {muadilKarsilama && (
+          <span style={{display:"inline-block",fontSize:9,fontWeight:600,color:"#92400E",background:"rgba(245,158,11,0.1)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
+            {muadilKarsilama.muadilKod} ile gönderildi
+          </span>
+        )}
+        {/* D2: İade bilgisi */}
+        {(k.iadeler || []).length > 0 && (() => {
+          const topIade = k.iadeler.reduce((s, i) => s + (i.miktar || 0), 0);
+          const net = (k.karsilanan || 0) - topIade;
+          return (
+            <span style={{display:"inline-block",fontSize:9,fontWeight:600,color:"#DC2626",background:"rgba(239,68,68,0.08)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
+              {topIade} iade · Net: {net} adet
+            </span>
+          );
+        })()}
       </div>
       <div className="sip-kr-right">
         {k.karsilanan > 0 && <span className="sip-kr-karsi">{k.karsilanan}/</span>}
         <span className="sip-kr-adet">{k.adet}</span>
         {satirToplamStr
           ? <span className="sip-kr-fiyat"><span className="sip-kr-birim-fiyat">{satirToplamStr.birim}</span><span className="sip-kr-x">×{k.adet} = </span><strong>{satirToplamStr.top}</strong></span>
-          : <span className="sip-kr-fiyat sip-kr-fiyat-yok">Fiyat sorulacak</span>
+          : karsilamaFiyatStr
+            ? <span className="sip-kr-fiyat"><strong>{karsilamaFiyatStr}</strong><span className="sip-kr-x">/ad</span></span>
+            : <span className="sip-kr-fiyat sip-kr-fiyat-yok">Fiyat sorulacak</span>
         }
         {k.yeniUrun && <span className="sip-new-badge">NEW</span>}
       </div>
