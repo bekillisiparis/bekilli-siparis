@@ -60,6 +60,8 @@ const LANG = {
     hesabim_yakin: 'Hesabım yakında aktif olacak.',
     bakiye: 'Bakiye', faturalar: 'Faturalar', odemeler: 'Ödemeler',
     bos_katalog: 'Katalog boş',
+    oturumu_ac: 'Oturumu açık tut',
+    oto_cikis: '15 dk hareketsizlikte otomatik çıkış yapılır',
   },
   en: {
     pin_title: 'Bekilli Group', pin_sub: 'Order System',
@@ -89,6 +91,8 @@ const LANG = {
     hesabim_yakin: 'Account section coming soon.',
     bakiye: 'Balance', faturalar: 'Invoices', odemeler: 'Payments',
     bos_katalog: 'Catalog is empty',
+    oturumu_ac: 'Keep me logged in',
+    oto_cikis: 'Auto-logout after 15 min of inactivity',
   },
 };
 
@@ -109,6 +113,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
+  const [keepSession, setKeepSession] = useState(() => localStorage.getItem('sip_keep_session') === '1');
 
   const t = LANG[lang];
   const toggleTheme = useCallback(() => {
@@ -159,6 +164,27 @@ export default function App() {
     setApiSuppliers([]); setApiKategoriler([]);
   }
 
+  // ── İnaktiflik sayacı: 15 dk → otomatik çıkış (keepSession kapalıysa) ──
+  const inactivityRef = useRef(null);
+  useEffect(() => {
+    if (!loggedIn || keepSession) {
+      if (inactivityRef.current) { clearTimeout(inactivityRef.current); inactivityRef.current = null; }
+      return;
+    }
+    const IDLE_MS = 15 * 60 * 1000;
+    const reset = () => {
+      if (inactivityRef.current) clearTimeout(inactivityRef.current);
+      inactivityRef.current = setTimeout(doLogout, IDLE_MS);
+    };
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      if (inactivityRef.current) clearTimeout(inactivityRef.current);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [loggedIn, keepSession]); // eslint-disable-line
+
   async function refreshSiparisler() {
     try {
       const data = await apiCall(API, pin);
@@ -168,7 +194,7 @@ export default function App() {
   }
 
   if (!loggedIn) {
-    return <LoginScreen t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} loading={loading} error={error} onLogin={doLogin} />;
+    return <LoginScreen t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} loading={loading} error={error} onLogin={doLogin} keepSession={keepSession} setKeepSession={(v) => { setKeepSession(v); localStorage.setItem('sip_keep_session', v ? '1' : '0'); }} />;
   }
 
   return (
@@ -182,7 +208,7 @@ export default function App() {
 }
 
 // ── Login ───────────────────────────────────────────
-function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onLogin }) {
+function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onLogin, keepSession, setKeepSession }) {
   const [input, setInput] = useState('');
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -210,6 +236,15 @@ function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onL
             {loading ? t.yukleniyor : t.pin_btn}
           </button>
         </div>
+        {/* Oturumu açık tut seçeneği */}
+        <label style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginTop:14,cursor:'pointer',userSelect:'none'}}>
+          <input type="checkbox" checked={keepSession} onChange={e=>setKeepSession(e.target.checked)}
+            style={{width:15,height:15,accentColor:'var(--sip-accent,#3B82F6)',cursor:'pointer'}} />
+          <span style={{fontSize:12,color:'var(--sip-t3,#888)',fontWeight:500}}>{t.oturumu_ac}</span>
+        </label>
+        {!keepSession && (
+          <div style={{fontSize:10,color:'var(--sip-orange,#F59E0B)',marginTop:4,textAlign:'center',fontWeight:500}}>{t.oto_cikis}</div>
+        )}
         {error && <p className="sip-login-error">{t.pin_error}</p>}
       </div>
     </div>
