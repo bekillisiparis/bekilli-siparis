@@ -163,12 +163,13 @@ function deriveDurum(kalemler, durumOverride) {
   if (durumOverride) return durumOverride; // Admin override varsa o geçerli
   if (!kalemler || kalemler.length === 0) return 'beklemede';
   const hepsiTamam = kalemler.every(k => k.karsilanan >= k.adet);
-  const hicBaslamamis = kalemler.every(k => k.karsilanan === 0 && !(k.hazirlanan > 0));
   if (hepsiTamam) return 'tamamlandi';
   // M2: Taslak fatura hazırlanıyorsa → "hazırlaniyor" durumu
+  // hicKarsilanmamis: hiç karşılama yapılmamış (ama hazırlanan olabilir)
+  const hicKarsilanmamis = kalemler.every(k => k.karsilanan === 0);
   const hazırlananVar = kalemler.some(k => (k.hazirlanan || 0) > 0 && k.karsilanan < k.adet);
-  if (hicBaslamamis && hazırlananVar) return 'hazirlaniyor';
-  if (hicBaslamamis) return 'beklemede';
+  if (hazırlananVar && hicKarsilanmamis) return 'hazirlaniyor';
+  if (hicKarsilanmamis) return 'beklemede';
   return 'kismi';
 }
 
