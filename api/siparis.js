@@ -471,8 +471,16 @@ async function adminFiyatGuncelle(body) {
 // Bakiye, açık faturalar, ödeme geçmişi, sipariş geçmişi
 // K6.11: SADECE satış fiyatları — alış maliyeti/kâr marjı ASLA
 async function adminHesapGuncelle(body) {
-  const { musteriId, bakiye, acikFaturalar, sonOdemeler, sipariGecmisi, sikAlinanlar } = body;
+  const { musteriId, bakiye, acikFaturalar, sonOdemeler, sipariGecmisi, sikAlinanlar,
+          kapananFaturalar, yeniBildirimler } = body;
   if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
+
+  // Mevcut hesap verisi oku (bildirim merge için)
+  const sanitizedId = stripHtml(musteriId);
+  let mevcutData = {};
+  try {
+    mevcutData = await gistReadFile(SIP_GIST, `hesap_${sanitizedId}.json`) || {};
+  } catch (e) { /* ilk yazım, dosya yok */ }
 
   const data = {
     guncelleme: new Date().toISOString(),
@@ -488,7 +496,7 @@ async function adminHesapGuncelle(body) {
     };
   }
 
-  // Açık faturalar — K6.11 kontrolü
+  // Açık faturalar — K6.11 kontrolü (zenginleştirilmiş alanlar)
   if (Array.isArray(acikFaturalar)) {
     data.acikFaturalar = acikFaturalar.map(f => {
       const temiz = {
@@ -499,6 +507,20 @@ async function adminHesapGuncelle(body) {
         kalan: parseFloat(f.kalan) || 0,
         doviz: stripHtml(f.doviz || 'USD'),
       };
+      // Portal v3 zengin alanlar
+      if (f.faturaId)     temiz.faturaId = stripHtml(f.faturaId);
+      if (f.orijinalDoviz && f.orijinalDoviz !== 'USD') {
+        temiz.orijinalDoviz = stripHtml(f.orijinalDoviz);
+        temiz.orijinalTutar = parseFloat(f.orijinalTutar) || 0;
+        temiz.orijinalKur   = parseFloat(f.orijinalKur) || 0;
+      }
+      if (parseFloat(f.kdvOrani) > 0) {
+        temiz.kdvOrani = parseFloat(f.kdvOrani);
+        temiz.kdvTutar = parseFloat(f.kdvTutar) || 0;
+      }
+      if (f.gecikmeGun !== undefined && f.gecikmeGun !== null) {
+        temiz.gecikmeGun = parseInt(f.gecikmeGun, 10) || 0;
+      }
       // Kalemler — SADECE satış fiyatı (birimFiyat), maliyet ASLA
       if (Array.isArray(f.kalemler)) {
         temiz.kalemler = f.kalemler.map(k => ({
@@ -507,11 +529,21 @@ async function adminHesapGuncelle(body) {
           adet: parseInt(k.adet, 10) || 0,
           birimFiyat: parseFloat(k.birimFiyat) || 0,
           toplam: parseFloat(k.toplam) || 0,
-          // maliyet, alisFiyati, kar, marj gibi alanlar KASITLI OLARAK YOK
+          // maliyet, alisFiyati, kar, marj, aciklama KASITLI OLARAK YOK (K6.11)
         }));
       }
       return temiz;
     });
+  }
+
+  // Kapanan faturalar (son 20 özet)
+  if (Array.isArray(kapananFaturalar)) {
+    data.kapananFaturalar = kapananFaturalar.slice(-20).map(f => ({
+      no: stripHtml(f.no || ''),
+      tarih: f.tarih || '',
+      tutar: parseFloat(f.tutar) || 0,
+      doviz: stripHtml(f.doviz || 'USD'),
+    }));
   }
 
   // Son ödemeler
@@ -520,6 +552,7 @@ async function adminHesapGuncelle(body) {
       tarih: o.tarih || '',
       tutar: parseFloat(o.tutar) || 0,
       doviz: stripHtml(o.doviz || 'USD'),
+      ...(o.orijinalTutar ? { orijinalTutar: parseFloat(o.orijinalTutar) || 0 } : {}),
       yontem: stripHtml(o.yontem || ''),
       aciklama: stripHtml(o.aciklama || ''),
     }));
@@ -547,7 +580,24 @@ async function adminHesapGuncelle(body) {
     data.sikAlinanlar = sikAlinanlar.map(k => stripHtml(k)).slice(0, 50);
   }
 
-  await gistWriteFile(SIP_GIST, `hesap_${stripHtml(musteriId)}.json`, data);
+  // Bildirimler — yenileri mevcut listeye append et, son 50 FIFO
+  const mevcutBildirimler = Array.isArray(mevcutData.bildirimler) ? mevcutData.bildirimler : [];
+  if (Array.isArray(yeniBildirimler) && yeniBildirimler.length > 0) {
+    const sanitized = yeniBildirimler.map(b => ({
+      id: stripHtml(b.id || ''),
+      tarih: b.tarih || new Date().toISOString(),
+      tip: stripHtml(b.tip || ''),
+      mesaj: stripHtml(b.mesaj || '').slice(0, 200),
+      ref: stripHtml(b.ref || ''),
+      okundu: false,
+    }));
+    data.bildirimler = [...mevcutBildirimler, ...sanitized].slice(-50);
+  } else {
+    // Bildirim eklenmese bile mevcut bildirimleri koru
+    data.bildirimler = mevcutBildirimler;
+  }
+
+  await gistWriteFile(SIP_GIST, `hesap_${sanitizedId}.json`, data);
 
   return { ok: true };
 }
@@ -1037,6 +1087,11 @@ export default async function handler(req, res) {
           const fData = await gistReadFile(SIP_GIST, `fiyat_${req.query.musteri}.json`);
           return res.status(200).json({ ok: true, fiyatlar: fData || {} });
         }
+        if (veri === 'hesap' && req.query.musteri) {
+          // Belirli müşterinin hesap/bakiye bilgisini oku
+          const hData = await gistReadFile(SIP_GIST, `hesap_${req.query.musteri}.json`);
+          return res.status(200).json({ ok: true, hesap: hData || {} });
+        }
         if (veri === 'tum_fiyatlar') {
           // Tüm portal müşterilerinin fiyatlarını tek seferde oku
           const gist = await gistRead(SIP_GIST);
@@ -1131,11 +1186,12 @@ export default async function handler(req, res) {
   const { id: musteriId, ad: musteriAd } = musteri;
 
   try {
-    // ── GET: Siparişleri + fiyatları oku ──────────────
+    // ── GET: Siparişleri + fiyatları + hesap bilgisi oku ──────────────
     if (req.method === 'GET') {
-      const [sipData, fiyatlar] = await Promise.all([
+      const [sipData, fiyatlar, hesapData] = await Promise.all([
         readSiparisler(musteriId),
         readFiyatlar(musteriId),
+        gistReadFile(SIP_GIST, `hesap_${musteriId}.json`).catch(() => null),
       ]);
       return res.status(200).json({
         musteriId,
@@ -1145,6 +1201,7 @@ export default async function handler(req, res) {
           durum: deriveDurum(s.kalemler || [], s.durumOverride),
         })),
         fiyatlar,
+        hesap: hesapData || null,
       });
     }
 
@@ -1153,8 +1210,27 @@ export default async function handler(req, res) {
       const body = req.body || {};
       const islem = body.islem;
 
-      if (!['ekle', 'sil', 'guncelle', 'kalem_sil'].includes(islem)) {
-        return res.status(400).json({ hata: 'Geçersiz işlem. Beklenen: ekle, sil, guncelle, kalem_sil' });
+      if (!['ekle', 'sil', 'guncelle', 'kalem_sil', 'bildirim_okundu'].includes(islem)) {
+        return res.status(400).json({ hata: 'Geçersiz işlem. Beklenen: ekle, sil, guncelle, kalem_sil, bildirim_okundu' });
+      }
+
+      // ── Bildirim okundu işaretle ────────────────────
+      if (islem === 'bildirim_okundu') {
+        const { bildirimIds } = body;
+        if (!Array.isArray(bildirimIds) || bildirimIds.length === 0) {
+          return res.status(400).json({ hata: 'bildirimIds dizisi gerekli' });
+        }
+        const hesapData = await gistReadFile(SIP_GIST, `hesap_${musteriId}.json`).catch(() => null);
+        if (!hesapData || !Array.isArray(hesapData.bildirimler)) {
+          return res.status(200).json({ ok: true }); // veri yok, sessizce başarılı
+        }
+        const idSet = new Set(bildirimIds.map(id => stripHtml(id)));
+        hesapData.bildirimler = hesapData.bildirimler.map(b =>
+          idSet.has(b.id) ? { ...b, okundu: true } : b
+        );
+        hesapData.guncelleme = new Date().toISOString();
+        await gistWriteFile(SIP_GIST, `hesap_${musteriId}.json`, hesapData);
+        return res.status(200).json({ ok: true });
       }
 
       // Sipariş dosyasını oku
