@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useReducer, useEffect, useMemo, useRef, useCallback } from 'react';
+import { FilterSection, SepetTab } from './SepetTab';
+import { TakipTab } from './TakipTab';
 
 // ── API ─────────────────────────────────────────────
 const API = '/api/siparis';
@@ -98,27 +100,40 @@ const LANG = {
 
 // Suppliers ve kategoriler artık API'den geliyor (K0.10 — tek kaynak)
 
+// ── App Reducer ─────────────────────────────────────
+const appInitial = {
+  lang: localStorage.getItem('sip_lang') || 'tr',
+  theme: localStorage.getItem('sip_theme') || 'light',
+  pin: sessionStorage.getItem('sip_pin') || '',
+  musteri: null, katalog: [], apiSuppliers: [], apiKategoriler: [],
+  fiyatlar: {}, siparisler: [], sonYenileme: null,
+  loading: false, error: '',
+  loggedIn: false,
+  keepSession: localStorage.getItem('sip_keep_session') === '1',
+};
+function appReducer(st, a) {
+  switch (a.type) {
+    case "LOGIN_START": return { ...st, loading: true, error: '' };
+    case "LOGIN_OK": return { ...st, loading: false, loggedIn: true, pin: a.pin, musteri: a.musteri, siparisler: a.siparisler, sonYenileme: new Date(), fiyatlar: a.fiyatlar, katalog: a.katalog, apiSuppliers: a.apiSuppliers, apiKategoriler: a.apiKategoriler };
+    case "LOGIN_FAIL": return { ...st, loading: false, error: a.error };
+    case "LOGOUT": return { ...st, pin: '', musteri: null, loggedIn: false, siparisler: [], fiyatlar: {}, katalog: [], apiSuppliers: [], apiKategoriler: [] };
+    case "REFRESH_OK": return { ...st, siparisler: a.siparisler, sonYenileme: new Date() };
+    case "SET_LANG": return { ...st, lang: a.v };
+    case "SET_THEME": return { ...st, theme: st.theme === 'dark' ? 'light' : 'dark' };
+    case "SET_KEEP_SESSION": return { ...st, keepSession: a.v };
+    default: return st;
+  }
+}
+
 // ── App ─────────────────────────────────────────────
 export default function App() {
-  const [lang, setLang] = useState(() => localStorage.getItem('sip_lang') || 'tr');
-  const [theme, setTheme] = useState(() => localStorage.getItem('sip_theme') || 'light');
-  const [pin, setPin] = useState(() => sessionStorage.getItem('sip_pin') || '');
-  const [musteri, setMusteri] = useState(null);
-  const [katalog, setKatalog] = useState([]);
-  const [apiSuppliers, setApiSuppliers] = useState([]);
-  const [apiKategoriler, setApiKategoriler] = useState([]);
-  const [fiyatlar, setFiyatlar] = useState({});
-  const [siparisler, setSiparisler] = useState([]);
-  const [sonYenileme, setSonYenileme] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [keepSession, setKeepSession] = useState(() => localStorage.getItem('sip_keep_session') === '1');
+  const [s, dispatch] = useReducer(appReducer, appInitial);
+  const { lang, theme, pin, musteri, katalog, apiSuppliers, apiKategoriler, fiyatlar, siparisler, sonYenileme, loading, error, loggedIn, keepSession } = s;
 
   const t = LANG[lang];
-  const toggleTheme = useCallback(() => {
-    setTheme(t => t === 'dark' ? 'light' : 'dark');
-  }, []);
+  const toggleTheme = useCallback(() => dispatch({ type: "SET_THEME" }), []);
+  const setLang = useCallback((v) => dispatch({ type: "SET_LANG", v: typeof v === 'function' ? v(lang) : v }), [lang]);
+  const setKeepSession = useCallback((v) => { dispatch({ type: "SET_KEEP_SESSION", v }); localStorage.setItem('sip_keep_session', v ? '1' : '0'); }, []);
 
   useEffect(() => { fetch(API).catch(e => console.warn('Preheat:', e.message)); }, []);
   useEffect(() => { localStorage.setItem('sip_lang', lang); }, [lang]);
@@ -129,39 +144,35 @@ export default function App() {
   useEffect(() => { if (pin && !loggedIn) doLogin(pin); }, []); // eslint-disable-line
 
   async function doLogin(p) {
-    setLoading(true);
-    setError('');
+    dispatch({ type: "LOGIN_START" });
     try {
       const [userData, katData] = await Promise.all([
         apiCall(API, p),
         apiCall(`${API}?katalog=1`),
       ]);
-      setMusteri({ id: userData.musteriId, ad: userData.musteriAd });
-      setSiparisler(userData.siparisler || []);
-      setSonYenileme(new Date());
-      setFiyatlar(extractFiyatlar(userData.fiyatlar));
-      setKatalog(katData.urunler || []);
-      setApiSuppliers(katData.suppliers || []);
-      setApiKategoriler(katData.kategoriler || []);
       // K0.12: API versiyon uyumluluk kontrolü
       if (katData.apiVersion && !katData.apiVersion.startsWith('2.')) {
         console.warn('Katalog API versiyonu uyumsuz:', katData.apiVersion);
       }
       sessionStorage.setItem('sip_pin', p);
-      setPin(p);
-      setLoggedIn(true);
+      dispatch({
+        type: "LOGIN_OK", pin: p,
+        musteri: { id: userData.musteriId, ad: userData.musteriAd },
+        siparisler: userData.siparisler || [],
+        fiyatlar: extractFiyatlar(userData.fiyatlar),
+        katalog: katData.urunler || [],
+        apiSuppliers: katData.suppliers || [],
+        apiKategoriler: katData.kategoriler || [],
+      });
     } catch (err) {
-      setError(err.message);
+      dispatch({ type: "LOGIN_FAIL", error: err.message });
       sessionStorage.removeItem('sip_pin');
     }
-    setLoading(false);
   }
 
   function doLogout() {
     sessionStorage.removeItem('sip_pin');
-    setPin(''); setMusteri(null); setLoggedIn(false);
-    setSiparisler([]); setFiyatlar({}); setKatalog([]);
-    setApiSuppliers([]); setApiKategoriler([]);
+    dispatch({ type: "LOGOUT" });
   }
 
   // ── İnaktiflik sayacı: 15 dk → otomatik çıkış (keepSession kapalıysa) ──
@@ -188,13 +199,12 @@ export default function App() {
   async function refreshSiparisler() {
     try {
       const data = await apiCall(API, pin);
-      setSiparisler(data.siparisler || []);
-      setSonYenileme(new Date());
+      dispatch({ type: "REFRESH_OK", siparisler: data.siparisler || [] });
     } catch (err) { console.warn('Sipariş yenileme hatası:', err.message); }
   }
 
   if (!loggedIn) {
-    return <LoginScreen t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} loading={loading} error={error} onLogin={doLogin} keepSession={keepSession} setKeepSession={(v) => { setKeepSession(v); localStorage.setItem('sip_keep_session', v ? '1' : '0'); }} />;
+    return <LoginScreen t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} loading={loading} error={error} onLogin={doLogin} keepSession={keepSession} setKeepSession={setKeepSession} />;
   }
 
   return (
@@ -555,489 +565,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
   );
 }
 
-// ── Filter Section ──────────────────────────────────
-function FilterSection({ title, items, value, onChange, allLabel }) {
-  return (
-    <div className="sip-filter-section">
-      <div className="sip-filter-title">{title}</div>
-      <div
-        className={`sip-filter-item ${!value ? 'active' : ''}`}
-        onClick={() => onChange('')}
-      >{allLabel}</div>
-      {items.map(item => (
-        <div
-          key={item}
-          className={`sip-filter-item ${value === item ? 'active' : ''}`}
-          onClick={() => onChange(value === item ? '' : item)}
-        >{item}</div>
-      ))}
-    </div>
-  );
-}
 
-// ── Sepet Tab (Sağ Panel Ana Sekme) ─────────────────
-function SepetTab({ t, sepet, fiyatlar, katalog, busy, onSil, onAdetGuncelle, onEkle, onGonder }) {
-  // Autocomplete
-  const [acInput, setAcInput] = useState('');
-  const [acOpen, setAcOpen] = useState(false);
-  const acRef = useRef(null);
-
-  const acResults = useMemo(() => {
-    if (!acInput || acInput.length < 2) return [];
-    const s = acInput.toLowerCase();
-    return katalog.filter(u =>
-      u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)
-    ).slice(0, 8);
-  }, [acInput, katalog]);
-
-  function acSelect(urun) {
-    onEkle(urun.kod, urun.ad, 1);
-    setAcInput('');
-    setAcOpen(false);
-  }
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e) { if (acRef.current && !acRef.current.contains(e.target)) setAcOpen(false); }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  // Inline new row
-  const [newAdet, setNewAdet] = useState('1');
-  const [newKod, setNewKod] = useState('');
-  const [newAcOpen, setNewAcOpen] = useState(false);
-  const newRef = useRef(null);
-
-  const newAcResults = useMemo(() => {
-    if (!newKod || newKod.length < 2) return [];
-    const s = newKod.toLowerCase();
-    return katalog.filter(u =>
-      u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)
-    ).slice(0, 6);
-  }, [newKod, katalog]);
-
-  function newRowSelect(urun) {
-    onEkle(urun.kod, urun.ad, parseInt(newAdet) || 1);
-    setNewKod('');
-    setNewAdet('1');
-    setNewAcOpen(false);
-  }
-
-  function newRowAdd() {
-    if (!newKod.trim()) return;
-    // Katalogda yoksa yeni ürün olarak ekle
-    const found = katalog.find(u => u.kod?.toLowerCase() === newKod.trim().toLowerCase());
-    if (found) {
-      onEkle(found.kod, found.ad, parseInt(newAdet) || 1);
-    } else {
-      // Parça no olarak algıla, supplier boş
-      onEkle(newKod.trim().toUpperCase(), newKod.trim().toUpperCase(), parseInt(newAdet) || 1, '', {
-        parcaNo: newKod.trim(), supplier: '', kategori: '',
-      });
-    }
-    setNewKod('');
-    setNewAdet('1');
-    setNewAcOpen(false);
-  }
-
-  useEffect(() => {
-    function handleClick(e) { if (newRef.current && !newRef.current.contains(e.target)) setNewAcOpen(false); }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  // Toplam hesapla
-  const sepetOzet = useMemo(() => {
-    let fiyatliToplam = 0;
-    let fiyatSorulacak = 0;
-    let topAdet = 0;
-    sepet.forEach(item => {
-      topAdet += item.adet;
-      const f = fiyatlar[item.urunKod];
-      if (f?.fiyat) {
-        fiyatliToplam += item.adet * f.fiyat;
-      } else {
-        fiyatSorulacak++;
-      }
-    });
-    const doviz = Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD';
-    return { fiyatliToplam, fiyatSorulacak, topAdet, doviz };
-  }, [sepet, fiyatlar]);
-
-  return (
-    <div className="sip-sepet-tab">
-      {/* Autocomplete arama */}
-      <div className="sip-ac-wrap" ref={acRef}>
-        <input
-          type="text" value={acInput}
-          onChange={e => { setAcInput(e.target.value); setAcOpen(true); }}
-          onFocus={() => acInput.length >= 2 && setAcOpen(true)}
-          placeholder={t.ekle_placeholder}
-          className="sip-ac-input"
-        />
-        {acOpen && acResults.length > 0 && (
-          <div className="sip-ac-dropdown">
-            {acResults.map(u => (
-              <div key={u.kod} className="sip-ac-item" onClick={() => acSelect(u)}>
-                <span>{u.kod} — {u.ad}</span>
-                <span className={`sip-ac-stock ${u.stokVar ? 'in' : 'out'}`}>
-                  {u.stokVar ? t.stokta : t.stok_yok}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Sepet listesi */}
-      {sepet.length === 0 ? (
-        <div className="sip-empty">{t.sepet_bos}</div>
-      ) : (
-        <>
-          <div className="sip-cart-header">
-            <span>{t.adet}</span>
-            <span>{t.urun}</span>
-            <span style={{textAlign:'right'}}>{t.toplam}</span>
-            <span></span>
-          </div>
-          {sepet.map(item => {
-            const f = fiyatlar[item.urunKod];
-            const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
-            // Supplier'ı koddan çıkar (3264700-AMBAC → AMBAC)
-            const parts = item.urunKod.split('-');
-            const supplier = parts.length > 1 ? parts[parts.length - 1] : '';
-            return (
-              <div key={item.id} className="sip-cart-row">
-                <input
-                  type="number" min="1" max="99999" value={item.adet}
-                  onChange={e => onAdetGuncelle(item.id, e.target.value)}
-                  className="sip-cr-adet"
-                />
-                <div className="sip-cr-urun">
-                  <span className="sip-cr-name">{item.urunAd}</span>
-                  {supplier && <span className="sip-cr-supplier">{supplier}</span>}
-                  {item.yeniUrunData && <span className="sip-new-badge">NEW</span>}
-                </div>
-                <div className="sip-cr-fiyat">
-                  {satirToplam != null
-                    ? <>{satirToplam.toLocaleString()} <span className="sip-cr-doviz">{f.doviz || 'USD'}</span></>
-                    : <span className="sip-cr-soru">?</span>
-                  }
-                </div>
-                <button className="sip-cr-del" onClick={() => onSil(item.id)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      {/* Inline yeni satır ekleme */}
-      <div className="sip-new-row" ref={newRef}>
-        <input
-          type="number" min="1" max="99999" value={newAdet}
-          onChange={e => setNewAdet(e.target.value)}
-          className="sip-nr-adet" placeholder={t.adet_gir}
-        />
-        <div className="sip-nr-input-wrap">
-          <input
-            type="text" value={newKod}
-            onChange={e => { setNewKod(e.target.value); setNewAcOpen(true); }}
-            onFocus={() => newKod.length >= 2 && setNewAcOpen(true)}
-            onKeyDown={e => { if (e.key === 'Enter') newRowAdd(); }}
-            placeholder={t.ekle_placeholder}
-            className="sip-nr-input"
-          />
-          {newAcOpen && newAcResults.length > 0 && (
-            <div className="sip-ac-dropdown sip-nr-dropdown">
-              {newAcResults.map(u => (
-                <div key={u.kod} className="sip-ac-item" onClick={() => newRowSelect(u)}>
-                  <span>{u.kod} — {u.ad}</span>
-                  <span className={`sip-ac-stock ${u.stokVar ? 'in' : 'out'}`}>
-                    {u.stokVar ? t.stokta : t.stok_yok}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <button className="sip-nr-add" onClick={newRowAdd} disabled={!newKod.trim()}>+</button>
-      </div>
-
-      {/* Toplam + Gönder */}
-      {sepet.length > 0 && (
-        <div className="sip-summary">
-          <div className="sip-sum-row">
-            <span className="sip-muted">{sepet.length} {t.satirlar}, {sepetOzet.topAdet} {t.topAdet}</span>
-          </div>
-          <div className="sip-sum-row">
-            <span className="sip-muted">{t.fiyatli_toplam}</span>
-            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
-          </div>
-          {sepetOzet.fiyatSorulacak > 0 && (
-            <div className="sip-sum-row">
-              <span className="sip-muted">{t.fiyat_sorun_kalem}</span>
-              <span className="sip-warn">{sepetOzet.fiyatSorulacak} {t.satirlar}</span>
-            </div>
-          )}
-          <div className="sip-sum-row sip-sum-total">
-            <span>{t.toplam}</span>
-            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
-          </div>
-          <button className="sip-send-btn" onClick={onGonder} disabled={busy}>
-            {busy ? t.gonderiliyor : t.gonder}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Takip Tab ───────────────────────────────────────
-// ── Toplam hesaplama helper ──────────────────────────
-function hesaplaToplamlar(kalemler, fiyatlar) {
-  const map = {}; // doviz -> toplam
-  let bilinmeyenVar = false;
-  kalemler.forEach(k => {
-    const f = fiyatlar[k.urunKod];
-    if (f && f.fiyat) {
-      const d = f.doviz || 'USD';
-      map[d] = (map[d] || 0) + f.fiyat * k.adet;
-    } else {
-      bilinmeyenVar = true;
-    }
-  });
-  return { map, bilinmeyenVar };
-}
-
-function formatToplamStr(map, bilinmeyenVar) {
-  const parts = Object.entries(map).map(([doviz, tutar]) =>
-    `${doviz === 'USD' ? '$' : doviz === 'EUR' ? '€' : doviz === 'TRY' ? '₺' : doviz + ' '}${tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  );
-  if (parts.length === 0) return null;
-  return parts.join(' + ') + (bilinmeyenVar ? ' + fiyatsız kalemler' : '');
-}
-
-function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil, onRefresh, sonYenileme }) {
-  const [refreshing, setRefreshing] = useState(false);
-  const beklemede = siparisler.filter(s => s.durum === 'beklemede');
-  const hazirlaniyor = siparisler.filter(s => s.durum === 'hazirlaniyor');
-  const kismi = siparisler.filter(s => s.durum === 'kismi');
-  const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
-  const iptal = siparisler.filter(s => s.durum === 'iptal');
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    await onRefresh();
-    setRefreshing(false);
-  }
-
-  const yenilemeStr = sonYenileme
-    ? sonYenileme.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : null;
-
-  return (
-    <div className="sip-takip-tab">
-      <div className="sip-takip-refresh-bar">
-        {yenilemeStr && <span className="sip-son-yenileme">Son güncelleme: {yenilemeStr}</span>}
-        <button className="sip-refresh-btn" onClick={handleRefresh} disabled={refreshing || busy}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: refreshing ? 'transform 0.6s linear' : 'none' }}>
-            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-          {refreshing ? 'Yükleniyor...' : 'Yenile'}
-        </button>
-      </div>
-      {siparisler.length === 0 && <div className="sip-empty">{t.bos_siparis}</div>}
-      {beklemede.length > 0 && (
-        <SiparisGrupList label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} showToplamBanner onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
-      )}
-      {hazirlaniyor.length > 0 && (
-        <SiparisGrupList label={t.hazirlaniyor} status="hazirlaniyor" items={hazirlaniyor} t={t} fiyatlar={fiyatlar} busy={busy} />
-      )}
-      {kismi.length > 0 && (
-        <SiparisGrupList label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />
-      )}
-      {tamamlandi.length > 0 && (
-        <SiparisGrupList label={t.tamamlandi} status="tamamlandi" items={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} />
-      )}
-      {iptal.length > 0 && (
-        <SiparisGrupList label={t.iptal_durum} status="iptal" items={iptal} t={t} fiyatlar={fiyatlar} busy={busy} />
-      )}
-    </div>
-  );
-}
-
-function SiparisGrupList({ label, status, items, t, fiyatlar, busy, showToplamBanner, onGrupSil, onKalemGuncelle, onKalemSil }) {
-  // Beklemede banner: tüm gruplardaki tüm kalemlerin toplamı
-  let bannerStr = null;
-  if (showToplamBanner) {
-    const tumKalemler = items.flatMap(g => g.kalemler || []);
-    const { map, bilinmeyenVar } = hesaplaToplamlar(tumKalemler, fiyatlar);
-    bannerStr = formatToplamStr(map, bilinmeyenVar);
-  }
-
-  return (
-    <div className="sip-sgroup">
-      <div className={`sip-sgroup-label status-${status}`}>
-        {label} ({items.length})
-        {bannerStr && <span className="sip-sgroup-toplam">{bannerStr}</span>}
-      </div>
-      {items.map(grup => (
-        <SiparisGrupCard key={grup.id} grup={grup} t={t} fiyatlar={fiyatlar} busy={busy}
-          onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil}
-        />
-      ))}
-    </div>
-  );
-}
-
-function SiparisGrupCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
-  const [open, setOpen] = useState(false);
-  const kalemler = grup.kalemler || [];
-  const tarih = new Date(grup.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  const topKalem = kalemler.length;
-  const topAdet = kalemler.reduce((s, k) => s + k.adet, 0);
-  const topKarsilanan = kalemler.reduce((s, k) => s + (k.karsilanan || 0), 0);
-  const editable = grup.durum === 'beklemede' && topKarsilanan === 0;
-
-  // Grup toplamı (açıkken gösterilecek)
-  const { map: grupMap, bilinmeyenVar: grupBilinmeyen } = hesaplaToplamlar(kalemler, fiyatlar);
-  const grupToplamStr = formatToplamStr(grupMap, grupBilinmeyen);
-
-  return (
-    <div className={`sip-grup-card status-${grup.durum}`}>
-      <div className="sip-gc-header" onClick={() => setOpen(o => !o)}>
-        <div className="sip-gc-left">
-          <span className="sip-gc-count">{topKalem} {t.satirlar}</span>
-          <span className="sip-gc-adet">{topKarsilanan > 0 ? `${topKarsilanan}/` : ''}{topAdet} {t.topAdet}</span>
-        </div>
-        <div className="sip-gc-right">
-          <span className="sip-gc-tarih">{tarih}</span>
-          <span className={`sip-gc-chevron ${open ? 'open' : ''}`}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </div>
-      </div>
-
-      {open && (
-        <div className="sip-gc-kalemler">
-          {kalemler.map(k => (
-            <KalemRow key={k.id} k={k} grupId={grup.id} t={t} fiyat={fiyatlar[k.urunKod]}
-              editable={editable} busy={busy} onGuncelle={onKalemGuncelle} onSil={onKalemSil}
-              karsilamalar={grup.karsilamalar}
-            />
-          ))}
-          {grupToplamStr && (
-            <div className="sip-grup-toplam-row">
-              <span>Toplam</span>
-              <span className="sip-grup-toplam-val">{grupToplamStr}</span>
-            </div>
-          )}
-          {editable && onGrupSil && (
-            <button className="sip-gc-del" onClick={() => onGrupSil(grup.id)} disabled={busy}>
-              {t.sil}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, karsilamalar }) {
-  const [editMode, setEditMode] = useState(false);
-  const [yeniAdet, setYeniAdet] = useState(String(k.adet));
-
-  function handleSave() {
-    const a = parseInt(yeniAdet);
-    if (a && a !== k.adet && a >= 1) {
-      onGuncelle?.(grupId, k.id, a);
-    }
-    setEditMode(false);
-  }
-
-  // B2: Karşılama fiyatı (son karşılamadan)
-  const kalemKarsilamalar = (karsilamalar || []).filter(x => x.kalemId === k.id && x.miktar > 0);
-  const sonKarsilama = kalemKarsilamalar.length > 0 ? kalemKarsilamalar[kalemKarsilamalar.length - 1] : null;
-  // M11: Muadil bilgisi
-  const muadilKarsilama = kalemKarsilamalar.find(x => x.muadilKod);
-
-  const satirToplamStr = fiyat && fiyat.fiyat
-    ? (() => {
-        const sym = fiyat.doviz === 'USD' ? '$' : fiyat.doviz === 'EUR' ? '€' : fiyat.doviz === 'TRY' ? '₺' : (fiyat.doviz + ' ');
-        const birim = `${sym}${fiyat.fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        const top = `${sym}${(fiyat.fiyat * k.adet).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        return { birim, top };
-      })()
-    : null;
-
-  // B2: Karşılama fiyatı gösterimi (fiyat katalogda yoksa karşılamadaki fiyatı göster)
-  const karsilamaFiyatStr = !satirToplamStr && sonKarsilama?.fiyat
-    ? (() => {
-        const sym = sonKarsilama.doviz === 'USD' ? '$' : sonKarsilama.doviz === 'EUR' ? '€' : (sonKarsilama.doviz + ' ');
-        return `${sym}${sonKarsilama.fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      })()
-    : null;
-
-  return (
-    <div className="sip-kalem-row">
-      <div className="sip-kr-info">
-        <span className="sip-kr-name">{k.urunAd}</span>
-        <span className="sip-kr-code">{k.urunKod}</span>
-        {/* M4: Hazırlanıyor badge */}
-        {(k.hazirlanan || 0) > 0 && k.karsilanan < k.adet && (
-          <span style={{display:"inline-block",fontSize:9,fontWeight:700,color:"#7C3AED",background:"rgba(168,85,247,0.1)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
-            🔧 {k.hazirlanan} hazırlanıyor
-          </span>
-        )}
-        {/* M11: Muadil bilgisi */}
-        {muadilKarsilama && (
-          <span style={{display:"inline-block",fontSize:9,fontWeight:600,color:"#92400E",background:"rgba(245,158,11,0.1)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
-            {muadilKarsilama.muadilKod} ile gönderildi
-          </span>
-        )}
-        {/* D2: İade bilgisi */}
-        {(k.iadeler || []).length > 0 && (() => {
-          const topIade = k.iadeler.reduce((s, i) => s + (i.miktar || 0), 0);
-          const net = (k.karsilanan || 0) - topIade;
-          return (
-            <span style={{display:"inline-block",fontSize:9,fontWeight:600,color:"#DC2626",background:"rgba(239,68,68,0.08)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
-              {topIade} iade · Net: {net} adet
-            </span>
-          );
-        })()}
-      </div>
-      <div className="sip-kr-right">
-        {k.karsilanan > 0 && <span className="sip-kr-karsi">{k.karsilanan}/</span>}
-        <span className="sip-kr-adet">{k.adet}</span>
-        {satirToplamStr
-          ? <span className="sip-kr-fiyat"><span className="sip-kr-birim-fiyat">{satirToplamStr.birim}</span><span className="sip-kr-x">×{k.adet} = </span><strong>{satirToplamStr.top}</strong></span>
-          : karsilamaFiyatStr
-            ? <span className="sip-kr-fiyat"><strong>{karsilamaFiyatStr}</strong><span className="sip-kr-x">/ad</span></span>
-            : <span className="sip-kr-fiyat sip-kr-fiyat-yok">Fiyat sorulacak</span>
-        }
-        {k.yeniUrun && <span className="sip-new-badge">NEW</span>}
-      </div>
-      {editable && onSil && !editMode && (
-        <div className="sip-kr-actions">
-          <button onClick={() => { setYeniAdet(String(k.adet)); setEditMode(true); }} disabled={busy} className="sip-kr-btn">{t.adet}</button>
-          <button onClick={() => onSil(grupId, k.id)} disabled={busy} className="sip-kr-btn del">{t.sil}</button>
-        </div>
-      )}
-      {editMode && (
-        <div className="sip-kr-edit">
-          <input type="number" min="1" max="99999" value={yeniAdet}
-            onChange={e => setYeniAdet(e.target.value)} className="sip-kr-edit-input"
-            style={{ fontSize: 16 }} />
-          <button onClick={handleSave} disabled={busy} className="sip-kr-btn">{t.guncelle}</button>
-          <button onClick={() => setEditMode(false)} className="sip-kr-btn">{t.iptal_btn}</button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Hesabım Tab (placeholder) ───────────────────────
 function HesabimTab({ t }) {
