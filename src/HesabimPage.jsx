@@ -231,7 +231,7 @@ function DashboardView({ t, bildirimler, sonOdemeler, okunmamisSayisi, hesap, tl
 
       {/* İletişim */}
       <div className="sip-destek">
-        Sorularınız için: <a href="https://wa.me/905xxxxxxxxx" target="_blank" rel="noopener noreferrer">WhatsApp</a> · <a href="mailto:info@bekilligroup.com">E-posta</a>
+        Sorularınız için: <a href="https://wa.me/905383487516" target="_blank" rel="noopener noreferrer">WhatsApp</a> · <a href="mailto:info@bekilligroup.com">E-posta</a>
       </div>
     </div>
   );
