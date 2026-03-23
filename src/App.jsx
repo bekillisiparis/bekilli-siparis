@@ -500,6 +500,14 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
             </button>
           </div>
 
+          {/* ── Global Yenile Bar (tüm tab'lar) ── */}
+          <div className="sip-refresh-bar">
+            <span className="sip-refresh-time">
+              {sonYenileme ? sonYenileme.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : "—"}
+            </span>
+            <button className="sip-refresh-btn" onClick={refreshSiparisler} title={t.yenile || "Yenile"}>↻</button>
+          </div>
+
           <div className="sip-tab-content">
             {tab === 'siparis' && (
               <SepetTab
@@ -512,7 +520,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
               <TakipTab
                 t={t} siparisler={siparisler} fiyatlar={fiyatlar}
                 busy={busy} onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
-                onRefresh={refreshSiparisler} sonYenileme={sonYenileme}
+                onRefresh={refreshSiparisler}
               />
             )}
             {tab === 'hesabim' && <HesabimTab t={t} hesap={hesap} pin={pin} onRefresh={refreshSiparisler} />}
@@ -556,6 +564,13 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
                 {t.hesabim}
               </button>
             </div>
+            {/* ── Global Yenile Bar (mobil) ── */}
+            <div className="sip-refresh-bar">
+              <span className="sip-refresh-time">
+                {sonYenileme ? sonYenileme.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : "—"}
+              </span>
+              <button className="sip-refresh-btn" onClick={refreshSiparisler} title={t.yenile || "Yenile"}>↻</button>
+            </div>
             <div className="sip-sheet-content">
               {tab === 'siparis' && (
                 <SepetTab
@@ -568,7 +583,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
                 <TakipTab
                   t={t} siparisler={siparisler} fiyatlar={fiyatlar}
                   busy={busy} onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
-                  onRefresh={refreshSiparisler} sonYenileme={sonYenileme}
+                  onRefresh={refreshSiparisler}
                 />
               )}
               {tab === 'hesabim' && <HesabimTab t={t} hesap={hesap} pin={pin} onRefresh={refreshSiparisler} />}
