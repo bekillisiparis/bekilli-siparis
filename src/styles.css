@@ -229,20 +229,19 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-takip-tab { padding: 10px 12px; }
 
 /* Yenile bar */
-.sip-takip-refresh-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px; padding: 6px 2px;
-  border-bottom: 1px solid var(--sip-border);
+/* ── Global Refresh Bar (tab üstü) ── */
+.sip-refresh-bar {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 4px 8px;
 }
-.sip-son-yenileme { font-size: 11px; color: var(--sip-text-muted); }
+.sip-refresh-time { font-size: 10px; color: var(--sip-text-muted); font-family: var(--sip-mono); }
 .sip-refresh-btn {
-  display: flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: 20px; border: 1px solid var(--sip-border);
-  background: var(--sip-bg-card); color: var(--sip-text-secondary);
-  font-size: 12px; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--sip-border-light);
+  background: var(--sip-bg); color: var(--sip-text-muted);
+  font-size: 16px; cursor: pointer; transition: all 0.15s; padding: 0; line-height: 1;
 }
-.sip-refresh-btn:hover:not(:disabled) { background: var(--sip-accent); color: #fff; border-color: var(--sip-accent); }
-.sip-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sip-refresh-btn:hover { background: var(--sip-accent); color: #fff; border-color: var(--sip-accent); }
 
 /* Beklemede bölüm toplam */
 .sip-sgroup-toplam {
@@ -367,7 +366,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-h-fatura-kalan { font-size: 14px; font-weight: 800; font-family: var(--sip-mono); color: var(--sip-text); }
 .sip-h-fatura-kalan.sip-h-gecikme-uyari { color: var(--sip-warning-text); }
 .sip-h-fatura-kalan.sip-h-gecikme-kritik { color: var(--sip-danger); }
-.sip-h-gecikme-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; display: inline-block; margin-top: 2px; }
+.sip-h-gecikme-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; display: inline-block; margin-top: 2px; background: var(--sip-bg-subtle); color: var(--sip-text-muted); }
 .sip-h-gecikme-badge.sip-h-gecikme-uyari { background: var(--sip-warning-bg); color: var(--sip-warning-text); }
 .sip-h-gecikme-badge.sip-h-gecikme-kritik { background: var(--sip-danger-bg); color: var(--sip-danger); }
 
