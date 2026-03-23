@@ -251,7 +251,7 @@ function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onL
 
 // ── MainApp — 2 Page Layout ─────────────────────────
 function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, fiyatlar, siparisler, hesap, refreshSiparisler, sonYenileme, onLogout }) {
-  const [page, setPage] = useState('siparis');
+  const [page, setPage] = useState('hesabim');
   const [toast, setToast] = useState('');
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); }, []);
@@ -267,13 +267,13 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           <span>Bekilli</span> Group
         </div>
         <div className="sip-topnav-center">
-          <button className={`sip-page-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => setPage('siparis')}>
-            {t.siparis}
-            {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
-          </button>
           <button className={`sip-page-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => setPage('hesabim')}>
             {t.hesabim}
             {okunmamisSayisi > 0 && <span className="sip-notif-dot" />}
+          </button>
+          <button className={`sip-page-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => setPage('siparis')}>
+            {t.siparis}
+            {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
           </button>
         </div>
         <div className="sip-topnav-right">
@@ -291,31 +291,31 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
       </div>
 
       {/* ── Pages ── */}
-      <div className={`sip-page ${page === 'siparis' ? 'active' : ''}`}>
-        <SiparisPage
-          t={t} pin={pin} katalog={katalog} fiyatlar={fiyatlar}
-          siparisler={siparisler} refreshSiparisler={refreshSiparisler}
-          showToast={showToast}
-        />
-      </div>
       <div className={`sip-page ${page === 'hesabim' ? 'active' : ''}`}>
         <HesabimPage
           t={t} hesap={hesap} pin={pin} onRefresh={refreshSiparisler}
           fiyatlar={fiyatlar} katalog={katalog}
         />
       </div>
+      <div className={`sip-page ${page === 'siparis' ? 'active' : ''}`}>
+        <SiparisPage
+          t={t} pin={pin} katalog={katalog} fiyatlar={fiyatlar}
+          siparisler={siparisler} refreshSiparisler={refreshSiparisler}
+          showToast={showToast} sikAlinanlar={hesap?.sikAlinanlar || []}
+        />
+      </div>
 
       {/* ── Mobile Bottom Nav ── */}
       <div className="sip-mobile-bar">
-        <button className={`sip-mobile-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => setPage('siparis')}>
-          <OrderIcon />
-          <span>{t.siparis}</span>
-          {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
-        </button>
         <button className={`sip-mobile-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => setPage('hesabim')}>
           <AccountIcon />
           <span>{t.hesabim}</span>
           {okunmamisSayisi > 0 && <span className="sip-notif-dot" />}
+        </button>
+        <button className={`sip-mobile-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => setPage('siparis')}>
+          <OrderIcon />
+          <span>{t.siparis}</span>
+          {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
         </button>
       </div>
 
