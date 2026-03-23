@@ -6,6 +6,25 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 const API = '/api/siparis';
 
+// ── XLSX CDN yükle (script tag — Vite production uyumlu) ──
+function loadXLSX() {
+  if (window._XLSX_FULL) return Promise.resolve(window._XLSX_FULL);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => { window._XLSX_FULL = window.XLSX; res(window.XLSX); };
+    s.onerror = () => rej(new Error('SheetJS CDN yüklenemedi'));
+    document.head.appendChild(s);
+  });
+}
+
+// ── Excel şablon sütunları ──────────────────────────
+const SABLON_SUTUNLAR = ['ÜRÜN KODU', 'ÜRÜN ADI (opsiyonel)', 'ADET', 'NOT'];
+const SABLON_ORNEK = [
+  ['3264700-AMBAC', 'Nozzle 3264700', 5, ''],
+  ['5228275-STANADYNE', '', 2, 'Acil'],
+];
+
 async function apiCall(url, pin, body) {
   const opts = { headers: {} };
   if (pin) opts.headers['X-Siparis-PIN'] = pin;
@@ -174,7 +193,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
           <SepetPanel
             t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
             busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle}
-            onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar}
+            onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar} showToast={showToast}
           />
         </div>
 
@@ -239,7 +258,7 @@ function AccordionLevel({ label, count, sub, children }) {
 }
 
 // ── Sepet Panel (Orta) ──────────────────────────────
-function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder, sikAlinanlar }) {
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
   // Autocomplete
   const [acInput, setAcInput] = useState('');
   const [acOpen, setAcOpen] = useState(false);
@@ -286,6 +305,61 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  // ── Excel şablon indirme + yükleme ──────────────
+  const excelRef = useRef(null);
+  const [excelBusy, setExcelBusy] = useState(false);
+
+  async function sablonIndir() {
+    try {
+      const XLSX = await loadXLSX();
+      const wb = XLSX.utils.book_new();
+      const wsData = [SABLON_SUTUNLAR, ...SABLON_ORNEK];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 8 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Sipariş');
+      XLSX.writeFile(wb, 'Bekilli_Siparis_Sablon.xlsx');
+    } catch (e) { console.warn('Şablon indirme hatası:', e.message); }
+  }
+
+  async function excelYukle(file) {
+    if (!file) return;
+    setExcelBusy(true);
+    try {
+      const XLSX = await loadXLSX();
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!rows.length) { if (showToast) showToast('Dosya boş'); setExcelBusy(false); return; }
+
+      let eklenen = 0;
+      rows.forEach(row => {
+        // Sütun eşleştirme: ÜRÜN KODU veya ilk sütun
+        const kod = String(row['ÜRÜN KODU'] || row['URUN KODU'] || row['KOD'] || row['CODE'] || Object.values(row)[0] || '').trim().toUpperCase();
+        if (!kod) return;
+        const adRaw = String(row['ÜRÜN ADI (opsiyonel)'] || row['ÜRÜN ADI'] || row['URUN ADI'] || row['AD'] || row['NAME'] || '').trim();
+        const adet = Math.max(1, parseInt(row['ADET'] || row['QTY'] || row['QUANTITY'] || 1) || 1);
+        const not = String(row['NOT'] || row['NOTE'] || '').trim();
+
+        // Katalogda ara
+        const found = katalog.find(u => u.kod?.toUpperCase() === kod || u.parcaNo?.toUpperCase() === kod);
+        if (found) {
+          onEkle(found.kod, found.ad, adet, not);
+        } else {
+          // Yeni ürün olarak ekle
+          const parts = kod.split('-');
+          const parcaNo = parts[0] || kod;
+          const supplier = parts.length > 1 ? parts[parts.length - 1] : '';
+          onEkle(kod, adRaw || kod, adet, not, { parcaNo, supplier, kategori: '' });
+        }
+        eklenen++;
+      });
+      if (showToast) showToast(`${eklenen} ürün Excel'den eklendi`);
+    } catch (e) { if (showToast) showToast('Excel okunamadı: ' + e.message); }
+    setExcelBusy(false);
+    if (excelRef.current) excelRef.current.value = '';
+  }
+
   // Toplam
   const sepetOzet = useMemo(() => {
     let fiyatliToplam = 0, fiyatSorulacak = 0, topAdet = 0;
@@ -301,7 +375,16 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
 
   return (
     <div>
-      <div className="sip-panel-title">{t.siparis}</div>
+      <div className="sip-panel-title">
+        {t.siparis}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="sip-btn sip-btn-secondary" onClick={sablonIndir} style={{ fontSize: 9, padding: '4px 8px' }}>↓ Şablon</button>
+          <button className="sip-btn sip-btn-secondary" onClick={() => excelRef.current?.click()} disabled={excelBusy}
+            style={{ fontSize: 9, padding: '4px 8px' }}>{excelBusy ? '...' : '↑ Excel'}</button>
+        </div>
+      </div>
+      <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+        onChange={e => { if (e.target.files?.[0]) excelYukle(e.target.files[0]); }} />
 
       {/* Autocomplete arama */}
       <div className="sip-ac-wrap" ref={acRef}>
@@ -530,10 +613,11 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, kars
         {(k.hazirlanan || 0) > 0 && k.karsilanan < k.adet && (
           <span className="sip-badge sip-badge-hazir" style={{ fontSize: 8, marginTop: 2 }}>🔧 {k.hazirlanan} hazırlanıyor</span>
         )}
-        {/* M11: Muadil */}
+        {/* M11: Muadil — orijinal ürün parantez içinde */}
         {muadilKarsilama && (
           <span style={{ display: 'inline-block', fontSize: 9, fontWeight: 600, color: 'var(--sip-warning-text)', background: 'var(--sip-warning-bg)', padding: '1px 6px', borderRadius: 4, marginTop: 2 }}>
-            {muadilKarsilama.muadilKod} ile gönderildi
+            {muadilKarsilama.muadilKod}{muadilKarsilama.muadilAd ? ` — ${muadilKarsilama.muadilAd}` : ''} ile gönderildi
+            <span style={{ opacity: 0.7, marginLeft: 4 }}>(orijinal: {k.urunKod})</span>
           </span>
         )}
         {/* D2: İade */}
