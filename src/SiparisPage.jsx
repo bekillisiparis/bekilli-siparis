@@ -16,7 +16,7 @@ async function apiCall(url, pin, body) {
 }
 
 // ── SiparisPage ─────────────────────────────────────
-export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, refreshSiparisler, showToast }) {
+export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, refreshSiparisler, showToast, sikAlinanlar }) {
   const [sepet, setSepet] = useState([]);
   const [busy, setBusy] = useState(false);
   // Filtreler
@@ -174,7 +174,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
           <SepetPanel
             t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
             busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle}
-            onEkle={sepeteEkle} onGonder={siparisGonder}
+            onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar}
           />
         </div>
 
@@ -239,7 +239,7 @@ function AccordionLevel({ label, count, sub, children }) {
 }
 
 // ── Sepet Panel (Orta) ──────────────────────────────
-function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder }) {
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder, sikAlinanlar }) {
   // Autocomplete
   const [acInput, setAcInput] = useState('');
   const [acOpen, setAcOpen] = useState(false);
@@ -354,16 +354,16 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
 
       {/* Inline yeni satır */}
       <div className="sip-input-row" ref={newRef} style={{ position: 'relative' }}>
-        <input type="number" min="1" max="99999" value={newAdet} onChange={e => setNewAdet(e.target.value)}
-          className="sip-input" style={{ width: 56, textAlign: 'center' }} placeholder={t.adet_gir} />
         <input type="text" value={newKod}
           onChange={e => { setNewKod(e.target.value); setNewAcOpen(true); }}
           onFocus={() => newKod.length >= 2 && setNewAcOpen(true)}
           onKeyDown={e => { if (e.key === 'Enter') newRowAdd(); }}
           placeholder={t.ekle_placeholder} className="sip-input" />
+        <input type="number" min="1" max="99999" value={newAdet} onChange={e => setNewAdet(e.target.value)}
+          className="sip-input" style={{ width: 56, textAlign: 'center' }} placeholder={t.adet_gir} />
         <button className="sip-btn sip-btn-secondary" onClick={newRowAdd} disabled={!newKod.trim()}>+</button>
         {newAcOpen && newAcResults.length > 0 && (
-          <div className="sip-ac-dropdown" style={{ top: '100%', left: 56 }}>
+          <div className="sip-ac-dropdown" style={{ top: '100%', left: 0 }}>
             {newAcResults.map(u => (
               <div key={u.kod} className="sip-ac-item" onClick={() => newRowSelect(u)}>
                 <span>{u.kod} — {u.ad}</span>
@@ -390,6 +390,21 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
             <button className="sip-btn sip-btn-primary" onClick={onGonder} disabled={busy} style={{ flex: 1 }}>
               {busy ? t.gonderiliyor : t.gonder}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sık alınanlar */}
+      {sikAlinanlar && sikAlinanlar.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div className="sip-chips-label">{t.sik_alinanlar || 'Sık Alınanlar'}</div>
+          <div className="sip-chips">
+            {sikAlinanlar.slice(0, 12).map(kod => (
+              <button key={kod} className="sip-chip" onClick={() => {
+                const u = katalog.find(u => u.kod === kod);
+                onEkle(kod, u?.ad || kod, 1);
+              }}>{kod}</button>
+            ))}
           </div>
         </div>
       )}
@@ -462,7 +477,7 @@ function SiparisCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKa
       </div>
       {(progress > 0 || hazirProgress > 0) && (
         <div className="sip-progress">
-          <div className={`sip-progress-fill ${hazirProgress > 0 && progress === 0 ? 'purple' : ''}`}
+          <div className={`sip-progress-fill sip-pf-${grup.durum}`}
             style={{ width: `${Math.max(progress, hazirProgress)}%` }} />
         </div>
       )}
