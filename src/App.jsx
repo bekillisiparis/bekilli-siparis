@@ -1,6 +1,7 @@
 import { useState, useReducer, useEffect, useMemo, useRef, useCallback } from 'react';
 import { FilterSection, SepetTab } from './SepetTab';
 import { TakipTab } from './TakipTab';
+import HesabimTab from './HesabimTab';
 
 // ── API ─────────────────────────────────────────────
 const API = '/api/siparis';
@@ -61,6 +62,14 @@ const LANG = {
     // Hesabım
     hesabim_yakin: 'Hesabım yakında aktif olacak.',
     bakiye: 'Bakiye', faturalar: 'Faturalar', odemeler: 'Ödemeler',
+    hesap_bos: 'Hesap bilgisi henüz oluşturulmadı.',
+    borc_durumu: 'Borçlu', alacak_durumu: 'Alacaklı', bakiye_sifir: 'Bakiye sıfır',
+    toplam_borc: 'Borç', toplam_alacak: 'Alacak',
+    bildirimler: 'Bildirimler', tumunu_oku: 'Tümünü okundu yap',
+    genel: 'Genel', acik_fatura: 'Açık Fatura', acik_toplam: 'Açık Tutar',
+    son_odeme_tarihi: 'Son Ödeme', sik_alinanlar: 'Sık Alınanlar',
+    fatura_yok: 'Açık fatura yok', gun: 'gün', odenen: 'Ödenen',
+    kapanan_faturalar: 'Kapanan Faturalar', odeme_yok: 'Ödeme geçmişi yok',
     bos_katalog: 'Katalog boş',
     oturumu_ac: 'Oturumu açık tut',
     oto_cikis: '15 dk hareketsizlikte otomatik çıkış yapılır',
@@ -92,6 +101,14 @@ const LANG = {
     urun_ad: 'Product Name', not_placeholder: 'Note (optional)',
     hesabim_yakin: 'Account section coming soon.',
     bakiye: 'Balance', faturalar: 'Invoices', odemeler: 'Payments',
+    hesap_bos: 'Account information not yet available.',
+    borc_durumu: 'Outstanding', alacak_durumu: 'Credit', bakiye_sifir: 'Balance zero',
+    toplam_borc: 'Debit', toplam_alacak: 'Credit',
+    bildirimler: 'Notifications', tumunu_oku: 'Mark all as read',
+    genel: 'Overview', acik_fatura: 'Open Invoices', acik_toplam: 'Open Amount',
+    son_odeme_tarihi: 'Last Payment', sik_alinanlar: 'Frequently Ordered',
+    fatura_yok: 'No open invoices', gun: 'days', odenen: 'Paid',
+    kapanan_faturalar: 'Closed Invoices', odeme_yok: 'No payment history',
     bos_katalog: 'Catalog is empty',
     oturumu_ac: 'Keep me logged in',
     oto_cikis: 'Auto-logout after 15 min of inactivity',
@@ -106,7 +123,7 @@ const appInitial = {
   theme: localStorage.getItem('sip_theme') || 'light',
   pin: sessionStorage.getItem('sip_pin') || '',
   musteri: null, katalog: [], apiSuppliers: [], apiKategoriler: [],
-  fiyatlar: {}, siparisler: [], sonYenileme: null,
+  fiyatlar: {}, siparisler: [], hesap: null, sonYenileme: null,
   loading: false, error: '',
   loggedIn: false,
   keepSession: localStorage.getItem('sip_keep_session') === '1',
@@ -114,10 +131,10 @@ const appInitial = {
 function appReducer(st, a) {
   switch (a.type) {
     case "LOGIN_START": return { ...st, loading: true, error: '' };
-    case "LOGIN_OK": return { ...st, loading: false, loggedIn: true, pin: a.pin, musteri: a.musteri, siparisler: a.siparisler, sonYenileme: new Date(), fiyatlar: a.fiyatlar, katalog: a.katalog, apiSuppliers: a.apiSuppliers, apiKategoriler: a.apiKategoriler };
+    case "LOGIN_OK": return { ...st, loading: false, loggedIn: true, pin: a.pin, musteri: a.musteri, siparisler: a.siparisler, hesap: a.hesap || null, sonYenileme: new Date(), fiyatlar: a.fiyatlar, katalog: a.katalog, apiSuppliers: a.apiSuppliers, apiKategoriler: a.apiKategoriler };
     case "LOGIN_FAIL": return { ...st, loading: false, error: a.error };
-    case "LOGOUT": return { ...st, pin: '', musteri: null, loggedIn: false, siparisler: [], fiyatlar: {}, katalog: [], apiSuppliers: [], apiKategoriler: [] };
-    case "REFRESH_OK": return { ...st, siparisler: a.siparisler, sonYenileme: new Date() };
+    case "LOGOUT": return { ...st, pin: '', musteri: null, loggedIn: false, siparisler: [], hesap: null, fiyatlar: {}, katalog: [], apiSuppliers: [], apiKategoriler: [] };
+    case "REFRESH_OK": return { ...st, siparisler: a.siparisler, hesap: a.hesap !== undefined ? a.hesap : st.hesap, sonYenileme: new Date() };
     case "SET_LANG": return { ...st, lang: a.v };
     case "SET_THEME": return { ...st, theme: st.theme === 'dark' ? 'light' : 'dark' };
     case "SET_KEEP_SESSION": return { ...st, keepSession: a.v };
@@ -128,7 +145,7 @@ function appReducer(st, a) {
 // ── App ─────────────────────────────────────────────
 export default function App() {
   const [s, dispatch] = useReducer(appReducer, appInitial);
-  const { lang, theme, pin, musteri, katalog, apiSuppliers, apiKategoriler, fiyatlar, siparisler, sonYenileme, loading, error, loggedIn, keepSession } = s;
+  const { lang, theme, pin, musteri, katalog, apiSuppliers, apiKategoriler, fiyatlar, siparisler, hesap, sonYenileme, loading, error, loggedIn, keepSession } = s;
 
   const t = LANG[lang];
   const toggleTheme = useCallback(() => dispatch({ type: "SET_THEME" }), []);
@@ -159,6 +176,7 @@ export default function App() {
         type: "LOGIN_OK", pin: p,
         musteri: { id: userData.musteriId, ad: userData.musteriAd },
         siparisler: userData.siparisler || [],
+        hesap: userData.hesap || null,
         fiyatlar: extractFiyatlar(userData.fiyatlar),
         katalog: katData.urunler || [],
         apiSuppliers: katData.suppliers || [],
@@ -199,7 +217,7 @@ export default function App() {
   async function refreshSiparisler() {
     try {
       const data = await apiCall(API, pin);
-      dispatch({ type: "REFRESH_OK", siparisler: data.siparisler || [] });
+      dispatch({ type: "REFRESH_OK", siparisler: data.siparisler || [], hesap: data.hesap || null });
     } catch (err) { console.warn('Sipariş yenileme hatası:', err.message); }
   }
 
@@ -211,7 +229,7 @@ export default function App() {
     <MainApp
       t={t} lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} pin={pin}
       musteri={musteri} katalog={katalog} fiyatlar={fiyatlar}
-      siparisler={siparisler} refreshSiparisler={refreshSiparisler} sonYenileme={sonYenileme}
+      siparisler={siparisler} hesap={hesap} refreshSiparisler={refreshSiparisler} sonYenileme={sonYenileme}
       onLogout={doLogout}
     />
   );
@@ -262,7 +280,7 @@ function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onL
 }
 
 // ── MainApp — 3 Panel Desktop ───────────────────────
-function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, fiyatlar, siparisler, refreshSiparisler, sonYenileme, onLogout }) {
+function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, fiyatlar, siparisler, hesap, refreshSiparisler, sonYenileme, onLogout }) {
   const [tab, setTab] = useState('siparis');
   const [sepet, setSepet] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -497,7 +515,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
                 onRefresh={refreshSiparisler} sonYenileme={sonYenileme}
               />
             )}
-            {tab === 'hesabim' && <HesabimTab t={t} />}
+            {tab === 'hesabim' && <HesabimTab t={t} hesap={hesap} pin={pin} onRefresh={refreshSiparisler} />}
           </div>
         </div>
       </div>
@@ -553,7 +571,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
                   onRefresh={refreshSiparisler} sonYenileme={sonYenileme}
                 />
               )}
-              {tab === 'hesabim' && <HesabimTab t={t} />}
+              {tab === 'hesabim' && <HesabimTab t={t} hesap={hesap} pin={pin} onRefresh={refreshSiparisler} />}
             </div>
           </div>
         </>
@@ -567,14 +585,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
 
 
 
-// ── Hesabım Tab (placeholder) ───────────────────────
-function HesabimTab({ t }) {
-  return (
-    <div className="sip-hesabim-tab">
-      <div className="sip-empty">{t.hesabim_yakin}</div>
-    </div>
-  );
-}
+// ── Hesabım Tab → SIP-HesabimTab.jsx'e taşındı (v3-P2) ────────────
 
 // ── Theme Toggle ────────────────────────────────────
 function ThemeToggle({ theme, toggleTheme }) {
