@@ -196,6 +196,11 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-progress { height: 3px; background: var(--sip-bg-input); border-radius: 2px; margin-top: 4px; overflow: hidden; }
 .sip-progress-fill { height: 100%; border-radius: 2px; background: var(--sip-accent); transition: width .3s; }
 .sip-progress-fill.purple { background: var(--sip-purple); }
+.sip-pf-beklemede { background: var(--sip-orange); }
+.sip-pf-hazirlaniyor { background: var(--sip-purple); }
+.sip-pf-kismi { background: var(--sip-accent); }
+.sip-pf-tamamlandi { background: var(--sip-success); }
+.sip-pf-iptal { background: var(--sip-disabled); }
 .sip-collapse-toggle { font-size: 11px; color: var(--sip-text-faint); cursor: pointer; padding: 6px 0; display: flex; align-items: center; gap: 4px; border: none; background: none; font-family: inherit; }
 .sip-collapse-toggle:hover { color: var(--sip-text-muted); }
 
@@ -268,18 +273,24 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-bildirim-link { font-size: 11px; color: var(--sip-accent); cursor: pointer; padding: 4px 0; border: none; background: none; font-family: inherit; }
 .sip-bildirim-link:hover { text-decoration: underline; }
 
-/* Ödeme geçmişi */
-.sip-odeme { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--sip-border-faint); font-size: 11px; }
+/* Ödeme geçmişi — büyük yazı */
+.sip-odeme { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--sip-border-faint); font-size: 12px; }
 .sip-odeme:last-child { border-bottom: none; }
 .sip-odeme-tutar { font-weight: 600; color: var(--sip-text); }
 .sip-odeme-tarih { font-size: 9px; color: var(--sip-text-faint); }
-.sip-odeme-mahsup .sip-odeme-tutar { color: var(--sip-purple-text); }
+.sip-odeme-tarih-lg { font-size: 13px; font-weight: 600; color: var(--sip-text); }
+.sip-odeme-yontem-lg { font-size: 11px; color: var(--sip-text-muted); margin-top: 1px; }
+.sip-odeme-tutar-lg { font-size: 15px; font-weight: 700; color: var(--sip-text); text-align: right; }
+.sip-odeme-mahsup .sip-odeme-tutar, .sip-odeme-mahsup .sip-odeme-tutar-lg { color: var(--sip-purple-text); }
 .sip-esleme { font-size: 9px; background: var(--sip-bg-input); padding: 1px 6px; border-radius: 8px; color: var(--sip-text-muted); }
 
-/* Harcama trendi */
-.sip-trend { display: flex; align-items: flex-end; gap: 3px; height: 44px; margin-top: 6px; }
-.sip-trend-bar { flex: 1; background: var(--sip-accent-bg); border-radius: 3px 3px 0 0; min-height: 4px; transition: height .3s; }
+/* Harcama trendi — column layout */
+.sip-trend { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-top: 6px; }
+.sip-trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; height: 100%; justify-content: flex-end; }
+.sip-trend-bar { width: 100%; background: var(--sip-accent-bg); border-radius: 3px 3px 0 0; min-height: 4px; transition: height .3s; }
 .sip-trend-bar.current { background: var(--sip-accent); }
+.sip-trend-label { font-size: 9px; color: var(--sip-text-faint); white-space: nowrap; }
+.sip-trend-val { font-size: 9px; color: var(--sip-text-muted); font-weight: 600; }
 .sip-trend-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--sip-text-faint); margin-top: 3px; }
 
 /* Destek kutusu */
