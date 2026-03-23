@@ -198,7 +198,7 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, kars
         <span className="sip-kr-code">{k.urunKod}</span>
         {/* M4: Hazırlanıyor badge */}
         {(k.hazirlanan || 0) > 0 && k.karsilanan < k.adet && (
-          <span style={{display:"inline-block",fontSize:9,fontWeight:700,color:"#7C3AED",background:"rgba(168,85,247,0.1)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
+          <span style={{display:"inline-block",fontSize:9,fontWeight:700,color:"#7C3AED",background:"${G.purple}1A",padding:"1px 6px",borderRadius:4,marginTop:2}}>
             🔧 {k.hazirlanan} hazırlanıyor
           </span>
         )}
@@ -213,7 +213,7 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, kars
           const topIade = k.iadeler.reduce((s, i) => s + (i.miktar || 0), 0);
           const net = (k.karsilanan || 0) - topIade;
           return (
-            <span style={{display:"inline-block",fontSize:9,fontWeight:600,color:"#DC2626",background:"rgba(239,68,68,0.08)",padding:"1px 6px",borderRadius:4,marginTop:2}}>
+            <span style={{display:"inline-block",fontSize:9,fontWeight:600,color:"#DC2626",background:"${G.red}14",padding:"1px 6px",borderRadius:4,marginTop:2}}>
               {topIade} iade · Net: {net} adet
             </span>
           );
