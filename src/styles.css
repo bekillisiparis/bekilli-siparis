@@ -270,6 +270,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-sgroup-label.status-kismi { background: var(--sip-info-bg); color: var(--sip-info-text); }
 .sip-sgroup-label.status-tamamlandi { background: var(--sip-success-bg); color: var(--sip-success-text); }
 .sip-sgroup-label.status-iptal { background: var(--sip-disabled-bg); color: var(--sip-disabled); }
+.sip-sgroup-label.status-hazirlaniyor { background: rgba(168,85,247,0.1); color: #7C3AED; }
 
 /* ── Grup kartı ── */
 .sip-grup-card { background: var(--sip-bg); border-radius: var(--sip-radius-md); border: 1px solid var(--sip-border-light); margin-bottom: 6px; overflow: hidden; }
@@ -307,7 +308,99 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 .sip-kr-edit-input { width: 50px; padding: 3px; font-size: 16px; border: 1px solid var(--sip-accent); border-radius: var(--sip-radius-sm); text-align: center; outline: none; font-family: inherit; }
 
 /* ── Hesabım Tab ──────────────────────────────────── */
-.sip-hesabim-tab { padding: 10px 12px; }
+.sip-hesabim-tab { padding: 10px 12px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Bakiye Kartı ── */
+.sip-h-bakiye-card { background: var(--sip-accent-bg); border: 1px solid var(--sip-accent); border-radius: var(--sip-radius-md); padding: 16px; text-align: center; }
+.sip-h-bakiye-label { font-size: 11px; font-weight: 600; color: var(--sip-text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.sip-h-bakiye-val { font-size: 28px; font-weight: 800; font-family: var(--sip-mono); }
+.sip-h-bakiye-val.borc { color: var(--sip-danger); }
+.sip-h-bakiye-val.alacak { color: var(--sip-success-text); }
+.sip-h-bakiye-val.sifir { color: var(--sip-text-muted); }
+.sip-h-bakiye-alt { font-size: 11px; color: var(--sip-text-muted); margin-top: 2px; }
+.sip-h-bakiye-detay { display: flex; justify-content: center; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--sip-text-dim); }
+.sip-h-bakiye-detay b { font-weight: 700; color: var(--sip-text); }
+
+/* ── Section & Header ── */
+.sip-h-section { }
+.sip-h-section-header { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--sip-text-dim); padding: 4px 0; border-bottom: 1px solid var(--sip-border-light); margin-bottom: 6px; }
+.sip-h-link-btn { background: none; border: none; color: var(--sip-accent); font-size: 10px; font-weight: 600; cursor: pointer; font-family: inherit; margin-left: auto; padding: 2px 6px; }
+.sip-h-link-btn:hover { text-decoration: underline; }
+
+/* ── Bildirimler ── */
+.sip-h-bildirim-list { display: flex; flex-direction: column; gap: 3px; }
+.sip-h-bildirim { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--sip-radius-sm); cursor: pointer; font-size: 12px; transition: background 0.15s; }
+.sip-h-bildirim.yeni { background: var(--sip-accent-bg); font-weight: 600; }
+.sip-h-bildirim.okundu { opacity: 0.6; }
+.sip-h-bildirim:hover { background: var(--sip-accent-bg-hover); }
+.sip-h-bildirim-ikon { font-size: 14px; flex-shrink: 0; }
+.sip-h-bildirim-mesaj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sip-h-bildirim-tarih { font-size: 10px; color: var(--sip-text-muted); flex-shrink: 0; }
+
+/* ── Alt Sekmeler ── */
+.sip-h-alt-sekmeler { display: flex; gap: 4px; border-bottom: 1px solid var(--sip-border-light); padding-bottom: 0; }
+.sip-h-alt-btn { background: none; border: none; border-bottom: 2px solid transparent; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--sip-text-muted); cursor: pointer; font-family: inherit; transition: all 0.15s; display: flex; align-items: center; gap: 4px; }
+.sip-h-alt-btn.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); }
+.sip-h-alt-btn:hover { color: var(--sip-text); }
+.sip-h-count { background: var(--sip-accent); color: var(--sip-bg); font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px; min-width: 14px; text-align: center; }
+
+/* ── Genel Özet Grid ── */
+.sip-h-ozet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.sip-h-ozet-item { background: var(--sip-bg-subtle); border-radius: var(--sip-radius-sm); padding: 10px; text-align: center; }
+.sip-h-ozet-label { font-size: 10px; color: var(--sip-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.sip-h-ozet-val { font-size: 16px; font-weight: 800; color: var(--sip-text); margin-top: 2px; font-family: var(--sip-mono); }
+
+/* ── Sık Alınanlar Chip ── */
+.sip-h-chip-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.sip-h-chip { background: var(--sip-bg-subtle); border: 1px solid var(--sip-border-light); border-radius: 14px; padding: 3px 10px; font-size: 10px; font-weight: 600; font-family: var(--sip-mono); color: var(--sip-text-dim); cursor: pointer; transition: all 0.15s; }
+.sip-h-chip:hover { background: var(--sip-accent-bg); border-color: var(--sip-accent); color: var(--sip-accent); }
+
+/* ── Faturalar ── */
+.sip-h-fatura-card { background: var(--sip-bg); border: 1px solid var(--sip-border-light); border-radius: var(--sip-radius-sm); padding: 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+.sip-h-fatura-card:hover { border-color: var(--sip-accent); }
+.sip-h-fatura-row { display: flex; justify-content: space-between; align-items: center; }
+.sip-h-fatura-no { font-size: 12px; font-weight: 700; font-family: var(--sip-mono); }
+.sip-h-fatura-tarih { font-size: 10px; color: var(--sip-text-muted); margin-top: 1px; }
+.sip-h-fatura-sag { text-align: right; }
+.sip-h-fatura-kalan { font-size: 14px; font-weight: 800; font-family: var(--sip-mono); color: var(--sip-text); }
+.sip-h-fatura-kalan.sip-h-gecikme-uyari { color: var(--sip-warning-text); }
+.sip-h-fatura-kalan.sip-h-gecikme-kritik { color: var(--sip-danger); }
+.sip-h-gecikme-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; display: inline-block; margin-top: 2px; }
+.sip-h-gecikme-badge.sip-h-gecikme-uyari { background: var(--sip-warning-bg); color: var(--sip-warning-text); }
+.sip-h-gecikme-badge.sip-h-gecikme-kritik { background: var(--sip-danger-bg); color: var(--sip-danger); }
+
+/* ── Fatura Progress Bar ── */
+.sip-h-fatura-progress { height: 3px; background: var(--sip-border-light); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.sip-h-fatura-progress-fill { height: 100%; background: var(--sip-accent); border-radius: 2px; transition: width 0.3s; }
+
+/* ── Fatura Detay (accordion) ── */
+.sip-h-fatura-detay { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--sip-border-light); }
+.sip-h-fatura-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: var(--sip-text-muted); margin-bottom: 6px; }
+.sip-h-kalem-list { display: flex; flex-direction: column; gap: 3px; }
+.sip-h-kalem-row { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 0; }
+.sip-h-kalem-ad { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sip-text); }
+.sip-h-kalem-adet { color: var(--sip-text-muted); font-weight: 600; flex-shrink: 0; }
+.sip-h-kalem-fiyat { color: var(--sip-text-muted); flex-shrink: 0; font-family: var(--sip-mono); }
+.sip-h-kalem-toplam { font-weight: 700; color: var(--sip-text); flex-shrink: 0; font-family: var(--sip-mono); }
+
+/* ── Kapanan Faturalar ── */
+.sip-h-kapanan-list { display: flex; flex-direction: column; gap: 2px; }
+.sip-h-kapanan-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--sip-text-muted); padding: 3px 0; }
+.sip-h-kapanan-ok { color: var(--sip-success-text); font-weight: 700; }
+
+/* ── Ödemeler ── */
+.sip-h-odeme-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--sip-border-faint); }
+.sip-h-odeme-tarih { font-size: 12px; font-weight: 600; }
+.sip-h-odeme-yontem { font-size: 10px; color: var(--sip-text-muted); }
+.sip-h-odeme-tutar { font-size: 14px; font-weight: 700; font-family: var(--sip-mono); color: var(--sip-success-text); }
+.sip-h-odeme-doviz { font-size: 10px; color: var(--sip-text-muted); font-weight: 400; }
+
+/* ── Dark mode overrides ── */
+[data-theme="dark"] .sip-h-bakiye-card { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.3); }
+[data-theme="dark"] .sip-h-bildirim.yeni { background: rgba(59,130,246,0.1); }
+[data-theme="dark"] .sip-h-fatura-card { background: rgba(255,255,255,0.03); }
+[data-theme="dark"] .sip-h-ozet-item { background: rgba(255,255,255,0.04); }
+[data-theme="dark"] .sip-h-chip { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); }
 
 /* ── Shared ───────────────────────────────────────── */
 .sip-empty { text-align: center; padding: 40px 20px; color: var(--sip-text-muted); font-size: 14px; }
@@ -364,6 +457,7 @@ body { background: var(--sip-bg-page); color: var(--sip-text); -webkit-font-smoo
 [data-theme="dark"] .sip-sgroup-label.status-kismi { background: rgba(29,78,216,0.15); color: #93C5FD; }
 [data-theme="dark"] .sip-sgroup-label.status-tamamlandi { background: rgba(21,128,61,0.15); color: #86EFAC; }
 [data-theme="dark"] .sip-sgroup-label.status-iptal { background: rgba(255,255,255,0.04); color: #4E576A; }
+[data-theme="dark"] .sip-sgroup-label.status-hazirlaniyor { background: rgba(168,85,247,0.15); color: #C4B5FD; }
 
 /* Theme toggle button */
 .sip-theme-toggle { padding: 6px 10px; font-size: 14px; background: var(--sip-bg-page); border: 1px solid var(--sip-border); border-radius: 20px; cursor: pointer; line-height: 1; display: flex; align-items: center; box-shadow: var(--sip-shadow-sm); color: var(--sip-text-muted); }
