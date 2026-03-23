@@ -113,7 +113,7 @@ async function gistReadFile(gistId, filename, isPublic = false) {
   try { return JSON.parse(content); } catch { return null; }
 }
 
-async function gistWriteFile(gistId, filename, data) {
+async function gistWriteFile(gistId, filename, data, _retries = 0) {
   const res = await fetch(`${GIST_API}/${gistId}`, {
     method: 'PATCH',
     headers: { ...gistHeaders, 'Content-Type': 'application/json' },
@@ -122,6 +122,11 @@ async function gistWriteFile(gistId, filename, data) {
     }),
   });
   if (!res.ok) {
+    // 409 Conflict: Eşzamanlı yazım çakışması — 1sn bekle, 2 kez dene
+    if (res.status === 409 && _retries < 2) {
+      await new Promise(r => setTimeout(r, 1000 + _retries * 500));
+      return gistWriteFile(gistId, filename, data, _retries + 1);
+    }
     const txt = await res.text().catch(() => '');
     throw new Error(`Gist yazma hatası: ${res.status}`);
   }
@@ -546,7 +551,7 @@ async function adminHesapGuncelle(body) {
     }));
   }
 
-  // Son ödemeler
+  // Son ödemeler (tahsilatlar + mahsuplaşmalar, FIFO eşleşme detaylı)
   if (Array.isArray(sonOdemeler)) {
     data.sonOdemeler = sonOdemeler.map(o => ({
       tarih: o.tarih || '',
@@ -554,6 +559,14 @@ async function adminHesapGuncelle(body) {
       doviz: stripHtml(o.doviz || 'USD'),
       ...(o.orijinalTutar ? { orijinalTutar: parseFloat(o.orijinalTutar) || 0 } : {}),
       yontem: stripHtml(o.yontem || ''),
+      tip: stripHtml(o.tip || 'tahsilat'), // tahsilat | mahsup
+      // FIFO eşleşme: hangi faturayı ne kadar kapattı
+      ...(Array.isArray(o.eslesmeler) && o.eslesmeler.length > 0 ? {
+        eslesmeler: o.eslesmeler.map(e => ({
+          faturaNo: stripHtml(e.faturaNo || ''),
+          kapatilan: parseFloat(e.kapatilan) || 0,
+        })),
+      } : {}),
       aciklama: stripHtml(o.aciklama || ''),
     }));
   }
@@ -572,6 +585,26 @@ async function adminHesapGuncelle(body) {
       })) : [],
       toplamTutar: parseFloat(s.toplamTutar) || 0,
       doviz: stripHtml(s.doviz || 'USD'),
+    }));
+  }
+
+  // Bekleyen iadeler (mahsuplaştırılmamış iade alacakları)
+  if (Array.isArray(body.bekleyenIadeler)) {
+    data.bekleyenIadeler = body.bekleyenIadeler.map(f => ({
+      no: stripHtml(f.no || ''),
+      tarih: f.tarih || '',
+      tutar: parseFloat(f.tutar) || 0,
+      doviz: stripHtml(f.doviz || 'USD'),
+      aciklama: stripHtml(f.aciklama || ''),
+      // Kalemler — satış fiyatı, maliyet ASLA (K6.11)
+      ...(Array.isArray(f.kalemler) ? {
+        kalemler: f.kalemler.map(k => ({
+          urunKod: stripHtml(k.urunKod || ''),
+          urunAd: stripHtml(k.urunAd || ''),
+          adet: parseInt(k.adet, 10) || 0,
+          toplam: parseFloat(k.toplam) || 0,
+        })),
+      } : {}),
     }));
   }
 
