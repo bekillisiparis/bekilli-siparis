@@ -98,7 +98,7 @@ export default function HesabimTab({ t, hesap, pin, onSiparisSec, onRefresh }) {
                   <div className="sip-h-fatura-sol">
                     <span className="sip-h-fatura-no">{f.no || "—"}</span>
                     <span className="sip-h-fatura-tarih">{fmtD(f.tarih)}</span>
-                    {f.gecikmeGun >= 7 && (
+                    {f.gecikmeGun > 0 && (
                       <span className={`sip-h-gecikme-badge ${gecikmeRenk(f.gecikmeGun)}`}>
                         {f.gecikmeGun} {t.gun || "gün"}
                       </span>
