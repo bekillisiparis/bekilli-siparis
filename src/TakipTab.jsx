@@ -30,35 +30,15 @@ function formatToplamStr(map, bilinmeyenVar) {
   return parts.join(' + ') + (bilinmeyenVar ? ' + fiyatsız kalemler' : '');
 }
 
-function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil, onRefresh, sonYenileme }) {
-  const [refreshing, setRefreshing] = useState(false);
+function TakipTab({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil, onRefresh }) {
   const beklemede = siparisler.filter(s => s.durum === 'beklemede');
   const hazirlaniyor = siparisler.filter(s => s.durum === 'hazirlaniyor');
   const kismi = siparisler.filter(s => s.durum === 'kismi');
   const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
   const iptal = siparisler.filter(s => s.durum === 'iptal');
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    await onRefresh();
-    setRefreshing(false);
-  }
-
-  const yenilemeStr = sonYenileme
-    ? sonYenileme.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : null;
-
   return (
     <div className="sip-takip-tab">
-      <div className="sip-takip-refresh-bar">
-        {yenilemeStr && <span className="sip-son-yenileme">Son güncelleme: {yenilemeStr}</span>}
-        <button className="sip-refresh-btn" onClick={handleRefresh} disabled={refreshing || busy}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: refreshing ? 'transform 0.6s linear' : 'none' }}>
-            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-          {refreshing ? 'Yükleniyor...' : 'Yenile'}
-        </button>
-      </div>
       {siparisler.length === 0 && <div className="sip-empty">{t.bos_siparis}</div>}
       {beklemede.length > 0 && (
         <SiparisGrupList label={t.beklemede} status="beklemede" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} showToplamBanner onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
