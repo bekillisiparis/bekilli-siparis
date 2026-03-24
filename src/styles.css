@@ -98,13 +98,13 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-app { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 
 /* ── Top Nav ───────────────────────────────────────── */
-.sip-topnav { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 48px; background: var(--sip-bg); border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
+.sip-topnav { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 52px; background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.2); border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
 .sip-topnav-logo { font-size: 15px; font-weight: 700; color: var(--sip-text); display: flex; align-items: center; gap: 6px; }
 .sip-topnav-logo span { color: var(--sip-accent); }
 .sip-topnav-center { display: flex; gap: 0; }
-.sip-page-tab { padding: 12px 22px; font-size: 13px; font-weight: 400; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; position: relative; }
+.sip-page-tab { padding: 12px 22px; font-size: 15px; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; position: relative; }
 .sip-page-tab:hover:not(.active) { color: var(--sip-text); }
-.sip-page-tab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 600; }
+.sip-page-tab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 700; }
 .sip-page-tab .sip-notif-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sip-danger); display: inline-block; margin-left: 4px; vertical-align: middle; }
 .sip-topnav-right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sip-text-muted); }
 .sip-topnav-user { font-weight: 500; color: var(--sip-text-dim); }
@@ -121,7 +121,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-3panel { display: grid; grid-template-columns: minmax(0,30fr) minmax(0,40fr) minmax(0,30fr); flex: 1; overflow: hidden; }
 .sip-panel { overflow-y: auto; padding: 14px; border-right: 1px solid var(--sip-border-light); }
 .sip-panel:last-child { border-right: none; }
-.sip-panel-title { font-size: 13px; font-weight: 600; color: var(--sip-text-dim); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.sip-panel-title { font-size: 15px; font-weight: 700; color: var(--sip-text); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
 .sip-panel-count { font-size: 11px; background: var(--sip-bg-input); padding: 2px 8px; border-radius: 10px; color: var(--sip-text-muted); font-weight: 400; }
 
 /* ── Katalog Panel (sol) ───────────────────────────── */
@@ -151,7 +151,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-stok-yok { background: var(--sip-danger); }
 
 /* ── Sipariş Panel (orta) ──────────────────────────── */
-.sip-form-card { background: var(--sip-bg); border-radius: var(--sip-r-md); border: 1px solid var(--sip-border-light); padding: 14px; margin-bottom: 10px; }
+.sip-form-card { background: var(--sip-bg); border-radius: var(--sip-r-md); border: 1px solid var(--sip-border-light); padding: 14px; margin-bottom: 10px; box-shadow: var(--sip-shadow-sm); }
 .sip-form-header { font-size: 12px; color: var(--sip-text-muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
 .sip-form-total { font-weight: 600; color: var(--sip-text); }
 .sip-kalem-row { display: flex; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--sip-border-faint); font-size: 11px; }
@@ -187,7 +187,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-badge-kismi { background: var(--sip-info-bg); color: var(--sip-info-text); }
 .sip-badge-tamam { background: var(--sip-success-bg); color: var(--sip-success-text); }
 .sip-badge-iptal { background: var(--sip-disabled-bg); color: var(--sip-disabled); }
-.sip-sip-card { padding: 8px 10px; border-radius: var(--sip-r-sm); border: 1px solid var(--sip-border-light); margin-bottom: 5px; font-size: 11px; background: var(--sip-bg); cursor: pointer; transition: all .15s; }
+.sip-sip-card { padding: 8px 10px; border-radius: var(--sip-r-sm); border: 1px solid var(--sip-border-light); margin-bottom: 5px; font-size: 11px; background: var(--sip-bg); cursor: pointer; transition: all .15s; box-shadow: var(--sip-shadow-sm); }
 .sip-sip-card:hover { border-color: var(--sip-accent); }
 .sip-sip-card-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
 .sip-sip-card-id { font-weight: 600; color: var(--sip-text); }
@@ -208,7 +208,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-2panel { display: grid; grid-template-columns: minmax(0,58fr) minmax(0,42fr); flex: 1; overflow: hidden; }
 
 /* Bakiye kartı */
-.sip-bakiye { background: var(--sip-bg-subtle); border-radius: var(--sip-r-md); padding: 16px; margin-bottom: 14px; }
+.sip-bakiye { background: var(--sip-bg-subtle); border-radius: var(--sip-r-md); padding: 16px; margin-bottom: 14px; box-shadow: var(--sip-shadow-sm); }
 .sip-bakiye-label { font-size: 11px; color: var(--sip-text-muted); margin-bottom: 2px; }
 .sip-bakiye-net { font-size: 24px; font-weight: 600; margin-bottom: 2px; }
 .sip-bakiye-net.borc { color: var(--sip-danger); }
@@ -222,16 +222,16 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 
 /* Sub tabs (Açık/Kapanan/İade) */
 .sip-subtabs { display: flex; gap: 0; border-bottom: 1px solid var(--sip-border-light); margin-bottom: 10px; }
-.sip-subtab { padding: 7px 14px; font-size: 11px; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; font-weight: 400; }
+.sip-subtab { padding: 8px 14px; font-size: 12px; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; font-weight: 500; }
 .sip-subtab:hover { color: var(--sip-text); }
-.sip-subtab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 600; }
+.sip-subtab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 700; }
 
 /* Section titles */
-.sip-section-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--sip-text); display: flex; align-items: center; justify-content: space-between; }
+.sip-section-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--sip-text); display: flex; align-items: center; justify-content: space-between; }
 .sip-section-sum { font-size: 11px; color: var(--sip-text-muted); font-weight: 400; }
 
 /* Fatura kartları */
-.sip-fatura { padding: 10px 12px; border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); margin-bottom: 5px; cursor: pointer; background: var(--sip-bg); transition: all .15s; }
+.sip-fatura { padding: 10px 12px; border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); margin-bottom: 5px; cursor: pointer; background: var(--sip-bg); transition: all .15s; box-shadow: var(--sip-shadow-sm); }
 .sip-fatura:hover { border-color: var(--sip-accent); }
 .sip-fatura-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
 .sip-fatura-no { font-size: 12px; font-weight: 600; color: var(--sip-text); }
@@ -343,7 +343,8 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 [data-theme="dark"] .sip-panel { border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-acc-head { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-urun-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
-[data-theme="dark"] .sip-form-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-form-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); backdrop-filter: blur(8px); }
+[data-theme="dark"] .sip-bakiye { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-fatura { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-sip-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-logout-btn { border-color: rgba(255,255,255,0.1); color: var(--sip-text-muted); }
