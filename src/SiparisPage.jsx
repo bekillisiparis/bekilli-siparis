@@ -257,55 +257,53 @@ function AccordionLevel({ label, count, sub, children }) {
   );
 }
 
-// ── Sepet Panel (Orta) ──────────────────────────────
-function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
-  // Autocomplete
-  const [acInput, setAcInput] = useState('');
-  const [acOpen, setAcOpen] = useState(false);
-  const acRef = useRef(null);
+// ── Simetrik Arama Barı (tek component, üst+alt) ────
+function SearchAddBar({ katalog, placeholder, onAdd, onSelect }) {
+  const [input, setInput] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
-  const acResults = useMemo(() => {
-    if (!acInput || acInput.length < 2) return [];
-    const s = acInput.toLowerCase();
+  const results = useMemo(() => {
+    if (!input || input.length < 2) return [];
+    const s = input.toLowerCase();
     return katalog.filter(u => u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)).slice(0, 8);
-  }, [acInput, katalog]);
-
-  function acSelect(urun) { onEkle(urun.kod, urun.ad, 1); setAcInput(''); setAcOpen(false); }
+  }, [input, katalog]);
 
   useEffect(() => {
-    function h(e) { if (acRef.current && !acRef.current.contains(e.target)) setAcOpen(false); }
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  // Inline yeni satır
-  const [newAdet, setNewAdet] = useState('1');
-  const [newKod, setNewKod] = useState('');
-  const [newAcOpen, setNewAcOpen] = useState(false);
-  const newRef = useRef(null);
-
-  const newAcResults = useMemo(() => {
-    if (!newKod || newKod.length < 2) return [];
-    const s = newKod.toLowerCase();
-    return katalog.filter(u => u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)).slice(0, 6);
-  }, [newKod, katalog]);
-
-  function newRowSelect(urun) { onEkle(urun.kod, urun.ad, parseInt(newAdet) || 1); setNewKod(''); setNewAdet('1'); setNewAcOpen(false); }
-  function newRowAdd() {
-    if (!newKod.trim()) return;
-    const found = katalog.find(u => u.kod?.toLowerCase() === newKod.trim().toLowerCase());
-    if (found) { onEkle(found.kod, found.ad, parseInt(newAdet) || 1); }
-    else { onEkle(newKod.trim().toUpperCase(), newKod.trim().toUpperCase(), parseInt(newAdet) || 1, '', { parcaNo: newKod.trim(), supplier: '', kategori: '' }); }
-    setNewKod(''); setNewAdet('1'); setNewAcOpen(false);
+  function handleSelect(u) { onSelect(u); setInput(''); setOpen(false); }
+  function handleEnter() {
+    if (results.length > 0) handleSelect(results[0]);
+    else if (input.trim()) { onAdd(input); setInput(''); setOpen(false); }
   }
 
-  useEffect(() => {
-    function h(e) { if (newRef.current && !newRef.current.contains(e.target)) setNewAcOpen(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
+  return (
+    <div className="sip-ac-wrap" ref={ref}>
+      <input type="text" value={input}
+        onChange={e => { setInput(e.target.value); setOpen(true); }}
+        onFocus={() => input.length >= 2 && setOpen(true)}
+        onKeyDown={e => { if (e.key === 'Enter') handleEnter(); }}
+        placeholder={placeholder} className="sip-search" />
+      {open && results.length > 0 && (
+        <div className="sip-ac-dropdown">
+          {results.map(u => (
+            <div key={u.kod} className="sip-ac-item" onClick={() => handleSelect(u)}>
+              <span>{u.kod} — {u.ad}</span>
+              <span className={`sip-stok-dot ${u.stokVar ? 'sip-stok-var' : 'sip-stok-yok'}`} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-  // ── Excel şablon indirme + yükleme ──────────────
+// ── Sepet Panel (Orta) ──────────────────────────────
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
   const excelRef = useRef(null);
   const [excelBusy, setExcelBusy] = useState(false);
 
@@ -313,12 +311,11 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
     try {
       const XLSX = await loadXLSX();
       const wb = XLSX.utils.book_new();
-      const wsData = [SABLON_SUTUNLAR, ...SABLON_ORNEK];
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const ws = XLSX.utils.aoa_to_sheet([SABLON_SUTUNLAR, ...SABLON_ORNEK]);
       ws['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 8 }, { wch: 16 }];
       XLSX.utils.book_append_sheet(wb, ws, 'Sipariş');
       XLSX.writeFile(wb, 'Bekilli_Siparis_Sablon.xlsx');
-    } catch (e) { console.warn('Şablon indirme hatası:', e.message); }
+    } catch (e) { console.warn('Şablon hatası:', e.message); }
   }
 
   async function excelYukle(file) {
@@ -326,51 +323,42 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
     setExcelBusy(true);
     try {
       const XLSX = await loadXLSX();
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
       if (!rows.length) { if (showToast) showToast('Dosya boş'); setExcelBusy(false); return; }
-
-      let eklenen = 0;
+      let n = 0;
       rows.forEach(row => {
-        // Sütun eşleştirme: ÜRÜN KODU veya ilk sütun
         const kod = String(row['ÜRÜN KODU'] || row['URUN KODU'] || row['KOD'] || row['CODE'] || Object.values(row)[0] || '').trim().toUpperCase();
         if (!kod) return;
-        const adRaw = String(row['ÜRÜN ADI (opsiyonel)'] || row['ÜRÜN ADI'] || row['URUN ADI'] || row['AD'] || row['NAME'] || '').trim();
-        const adet = Math.max(1, parseInt(row['ADET'] || row['QTY'] || row['QUANTITY'] || 1) || 1);
+        const ad = String(row['ÜRÜN ADI (opsiyonel)'] || row['ÜRÜN ADI'] || row['AD'] || row['NAME'] || '').trim();
+        const adet = Math.max(1, parseInt(row['ADET'] || row['QTY'] || 1) || 1);
         const not = String(row['NOT'] || row['NOTE'] || '').trim();
-
-        // Katalogda ara
         const found = katalog.find(u => u.kod?.toUpperCase() === kod || u.parcaNo?.toUpperCase() === kod);
-        if (found) {
-          onEkle(found.kod, found.ad, adet, not);
-        } else {
-          // Yeni ürün olarak ekle
-          const parts = kod.split('-');
-          const parcaNo = parts[0] || kod;
-          const supplier = parts.length > 1 ? parts[parts.length - 1] : '';
-          onEkle(kod, adRaw || kod, adet, not, { parcaNo, supplier, kategori: '' });
-        }
-        eklenen++;
+        if (found) onEkle(found.kod, found.ad, adet, not);
+        else { const p = kod.split('-'); onEkle(kod, ad || kod, adet, not, { parcaNo: p[0], supplier: p[1] || '', kategori: '' }); }
+        n++;
       });
-      if (showToast) showToast(`${eklenen} ürün Excel'den eklendi`);
+      if (showToast) showToast(`${n} ürün Excel'den eklendi`);
     } catch (e) { if (showToast) showToast('Excel okunamadı: ' + e.message); }
     setExcelBusy(false);
     if (excelRef.current) excelRef.current.value = '';
   }
 
-  // Toplam
+  function handleAddByKod(kod) {
+    if (!kod.trim()) return;
+    const found = katalog.find(u => u.kod?.toLowerCase() === kod.trim().toLowerCase() || u.parcaNo?.toLowerCase() === kod.trim().toLowerCase());
+    if (found) onEkle(found.kod, found.ad, 1);
+    else { const p = kod.trim().toUpperCase().split('-'); onEkle(p.join('-'), p.join('-'), 1, '', { parcaNo: p[0], supplier: p[1] || '', kategori: '' }); }
+  }
+
   const sepetOzet = useMemo(() => {
     let fiyatliToplam = 0, fiyatSorulacak = 0, topAdet = 0;
     sepet.forEach(item => {
       topAdet += item.adet;
       const f = fiyatlar[item.urunKod];
-      if (f?.fiyat) fiyatliToplam += item.adet * f.fiyat;
-      else fiyatSorulacak++;
+      if (f?.fiyat) fiyatliToplam += item.adet * f.fiyat; else fiyatSorulacak++;
     });
-    const doviz = Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD';
-    return { fiyatliToplam, fiyatSorulacak, topAdet, doviz };
+    return { fiyatliToplam, fiyatSorulacak, topAdet, doviz: Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD' };
   }, [sepet, fiyatlar]);
 
   return (
@@ -386,24 +374,8 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
       <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
         onChange={e => { if (e.target.files?.[0]) excelYukle(e.target.files[0]); }} />
 
-      {/* Autocomplete arama */}
-      <div className="sip-ac-wrap" ref={acRef}>
-        <input type="text" value={acInput}
-          onChange={e => { setAcInput(e.target.value); setAcOpen(true); }}
-          onFocus={() => acInput.length >= 2 && setAcOpen(true)}
-          placeholder={t.ekle_placeholder} className="sip-search"
-        />
-        {acOpen && acResults.length > 0 && (
-          <div className="sip-ac-dropdown">
-            {acResults.map(u => (
-              <div key={u.kod} className="sip-ac-item" onClick={() => acSelect(u)}>
-                <span>{u.kod} — {u.ad}</span>
-                <span className={`sip-stok-dot ${u.stokVar ? 'sip-stok-var' : 'sip-stok-yok'}`} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Üst arama barı */}
+      <SearchAddBar katalog={katalog} placeholder={t.ekle_placeholder} onAdd={handleAddByKod} onSelect={u => onEkle(u.kod, u.ad, 1)} />
 
       {/* Sepet listesi */}
       {sepet.length === 0 ? (
@@ -435,27 +407,8 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
         </div>
       )}
 
-      {/* Inline yeni satır */}
-      <div className="sip-input-row" ref={newRef} style={{ position: 'relative' }}>
-        <input type="text" value={newKod}
-          onChange={e => { setNewKod(e.target.value); setNewAcOpen(true); }}
-          onFocus={() => newKod.length >= 2 && setNewAcOpen(true)}
-          onKeyDown={e => { if (e.key === 'Enter') newRowAdd(); }}
-          placeholder={t.ekle_placeholder} className="sip-input" />
-        <input type="number" min="1" max="99999" value={newAdet} onChange={e => setNewAdet(e.target.value)}
-          className="sip-input" style={{ width: 56, textAlign: 'center' }} placeholder={t.adet_gir} />
-        <button className="sip-btn sip-btn-secondary" onClick={newRowAdd} disabled={!newKod.trim()}>+</button>
-        {newAcOpen && newAcResults.length > 0 && (
-          <div className="sip-ac-dropdown" style={{ top: '100%', left: 0 }}>
-            {newAcResults.map(u => (
-              <div key={u.kod} className="sip-ac-item" onClick={() => newRowSelect(u)}>
-                <span>{u.kod} — {u.ad}</span>
-                <span className={`sip-stok-dot ${u.stokVar ? 'sip-stok-var' : 'sip-stok-yok'}`} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Alt arama barı (simetrik) */}
+      <SearchAddBar katalog={katalog} placeholder={t.ekle_placeholder} onAdd={handleAddByKod} onSelect={u => onEkle(u.kod, u.ad, 1)} />
 
       {/* Toplam + Gönder */}
       {sepet.length > 0 && (
@@ -483,10 +436,7 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
           <div className="sip-chips-label">{t.sik_alinanlar || 'Sık Alınanlar'}</div>
           <div className="sip-chips">
             {sikAlinanlar.slice(0, 12).map(kod => (
-              <button key={kod} className="sip-chip" onClick={() => {
-                const u = katalog.find(u => u.kod === kod);
-                onEkle(kod, u?.ad || kod, 1);
-              }}>{kod}</button>
+              <button key={kod} className="sip-chip" onClick={() => { const u = katalog.find(x => x.kod === kod); onEkle(kod, u?.ad || kod, 1); }}>{kod}</button>
             ))}
           </div>
         </div>
