@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════
-// Bekilli Group — Portal v4.1: HesabimPage
+// Bekilli Group — Portal v4.2: HesabimPage
 // 2 panel: Bakiye + Faturalar (sol 58%) + Dashboard Aktivite (sağ 42%)
 // Sağ panel: özet kartlar (5 bildirim + 5 ödeme) → tıklayınca tam geçmiş
 // ══════════════════════════════════════════════════════════════════════
@@ -9,6 +9,109 @@ const API = '/api/siparis';
 const fmt = (n, d = 2) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtD = (d) => d ? new Date(d).toLocaleDateString('tr-TR') : '—';
 const fmtDLong = (d) => d ? new Date(d).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+// ── XLSX CDN ────────────────────────────────────────
+function loadXLSX() {
+  if (window._XLSX_FULL) return Promise.resolve(window._XLSX_FULL);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => { window._XLSX_FULL = window.XLSX; res(window.XLSX); };
+    s.onerror = () => rej(new Error('SheetJS CDN yüklenemedi'));
+    document.head.appendChild(s);
+  });
+}
+
+// ── Fatura PDF (popup + print) ──────────────────────
+function faturaPdfAc(f, tlKur) {
+  const kalemRows = (f.kalemler || []).map(k =>
+    `<tr><td style="padding:6px 8px">${k.urunAd || k.urunKod}</td><td style="padding:6px 8px;text-align:center">${k.adet}</td><td style="padding:6px 8px;text-align:right">$${fmt(k.birimFiyat || 0)}</td><td style="padding:6px 8px;text-align:right">$${fmt(k.toplam || 0)}</td></tr>`
+  ).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Fatura ${f.no || ''}</title>
+<style>body{font-family:system-ui,sans-serif;padding:32px;color:#1a1a1a}h2{margin:0 0 4px}
+table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0f1f5;font-size:11px;padding:8px;text-align:left;border-bottom:2px solid #d1d6e0}
+td{font-size:12px;border-bottom:1px solid #e8e8e8}.meta{font-size:12px;color:#666;margin:4px 0}
+.total{text-align:right;font-size:16px;font-weight:700;margin-top:12px}@media print{body{padding:16px}}</style></head>
+<body><h2>Fatura: ${f.no || '—'}</h2>
+<div class="meta">Tarih: ${fmtD(f.tarih)}</div>
+<div class="meta">Toplam: $${fmt(f.tutar)}${tlKur > 0 ? ` (≈₺${fmt(f.tutar * tlKur, 0)})` : ''}</div>
+${f.odenen ? `<div class="meta">Ödenen: $${fmt(f.odenen)} · Kalan: $${fmt(f.kalan || 0)}</div>` : ''}
+${f.orijinalDoviz && f.orijinalDoviz !== 'USD' ? `<div class="meta">${f.orijinalDoviz}: ${fmt(f.orijinalTutar)}</div>` : ''}
+${f.kdvOrani > 0 ? `<div class="meta">KDV %${f.kdvOrani}: $${fmt(f.kdvTutar)}</div>` : ''}
+${kalemRows ? `<table><thead><tr><th>Ürün</th><th style="text-align:center">Adet</th><th style="text-align:right">Birim Fiyat</th><th style="text-align:right">Toplam</th></tr></thead><tbody>${kalemRows}</tbody></table>` : ''}
+<div class="total">Toplam: $${fmt(f.tutar)}</div>
+<script>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const w = window.open('', '_blank', 'width=700,height=600');
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+// ── Fatura Excel ────────────────────────────────────
+async function faturaExcelIndir(f) {
+  const XLSX = await loadXLSX();
+  const rows = [['Fatura No', 'Tarih', 'Toplam ($)', 'Ödenen ($)', 'Kalan ($)'],
+    [f.no || '', fmtD(f.tarih), f.tutar || 0, f.odenen || 0, f.kalan || 0]];
+  if (f.kalemler && f.kalemler.length > 0) {
+    rows.push([]);
+    rows.push(['Ürün', 'Adet', 'Birim Fiyat ($)', 'Toplam ($)']);
+    f.kalemler.forEach(k => rows.push([k.urunAd || k.urunKod, k.adet, k.birimFiyat || 0, k.toplam || 0]));
+  }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Fatura');
+  XLSX.writeFile(wb, `Fatura_${f.no || 'export'}.xlsx`);
+}
+
+// ── Ekstre PDF (dönem) ──────────────────────────────
+function ekstrePdfAc(faturalar, baslangic, bitis, bakiye, tlKur) {
+  const filtered = filterByDate(faturalar, baslangic, bitis);
+  const rows = filtered.map(f =>
+    `<tr><td style="padding:5px 8px">${f.no||'—'}</td><td style="padding:5px 8px">${fmtD(f.tarih)}</td><td style="padding:5px 8px;text-align:right">$${fmt(f.tutar)}</td><td style="padding:5px 8px;text-align:right">$${fmt(f.odenen||0)}</td><td style="padding:5px 8px;text-align:right">$${fmt(f.kalan||0)}</td></tr>`
+  ).join('');
+  const donem = baslangic || bitis ? `${baslangic || '...'} — ${bitis || '...'}` : 'Tüm dönem';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ekstre</title>
+<style>body{font-family:system-ui,sans-serif;padding:32px;color:#1a1a1a}h2{margin:0 0 4px}
+table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#f0f1f5;font-size:11px;padding:6px 8px;text-align:left;border-bottom:2px solid #d1d6e0}
+td{font-size:12px;border-bottom:1px solid #e8e8e8}.meta{font-size:12px;color:#666;margin:4px 0}
+.summary{margin-top:16px;padding:12px;background:#f7f8fa;border-radius:8px;font-size:13px}
+@media print{body{padding:16px}}</style></head>
+<body><h2>Hesap Ekstresi</h2>
+<div class="meta">Dönem: ${donem}</div>
+<div class="meta">${filtered.length} fatura</div>
+<div class="summary">Bakiye: $${fmt(Math.abs(bakiye?.net||0))} ${(bakiye?.net||0) > 0 ? '(Borçlu)' : (bakiye?.net||0) < 0 ? '(Alacaklı)' : ''}${tlKur > 0 ? ` · ≈₺${fmt(Math.abs(bakiye?.net||0)*tlKur,0)}` : ''}</div>
+<table><thead><tr><th>Fatura No</th><th>Tarih</th><th style="text-align:right">Tutar</th><th style="text-align:right">Ödenen</th><th style="text-align:right">Kalan</th></tr></thead><tbody>${rows}</tbody></table>
+<script>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const w = window.open('', '_blank', 'width=700,height=600');
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+// ── Ekstre Excel (dönem) ────────────────────────────
+async function ekstreExcelIndir(faturalar, baslangic, bitis, bakiye) {
+  const XLSX = await loadXLSX();
+  const filtered = filterByDate(faturalar, baslangic, bitis);
+  const rows = [['Fatura No', 'Tarih', 'Tutar ($)', 'Ödenen ($)', 'Kalan ($)']];
+  filtered.forEach(f => rows.push([f.no || '', fmtD(f.tarih), f.tutar || 0, f.odenen || 0, f.kalan || 0]));
+  rows.push([]);
+  rows.push(['', '', 'Toplam Borç', 'Toplam Alacak', 'Net Bakiye']);
+  rows.push(['', '', bakiye?.toplamBorc || 0, bakiye?.toplamAlacak || 0, bakiye?.net || 0]);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ekstre');
+  XLSX.writeFile(wb, `Ekstre_${baslangic || 'tum'}_${bitis || 'donem'}.xlsx`);
+}
+
+// ── Tarih filtresi ──────────────────────────────────
+function filterByDate(faturalar, baslangic, bitis) {
+  if (!baslangic && !bitis) return faturalar;
+  return faturalar.filter(f => {
+    if (!f.tarih) return true;
+    const t = f.tarih.slice(0, 10);
+    if (baslangic && t < baslangic) return false;
+    if (bitis && t > bitis) return false;
+    return true;
+  });
+}
 
 // ── HesabimPage ─────────────────────────────────────
 export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalog }) {
@@ -152,8 +255,10 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
           <input type="date" value={ekstreBaslangic} onChange={e => setEkstreBaslangic(e.target.value)} className="sip-input" style={{ width: 130, fontSize: 11 }} />
           <span style={{ fontSize: 11, color: 'var(--sip-text-faint)' }}>—</span>
           <input type="date" value={ekstreBitis} onChange={e => setEkstreBitis(e.target.value)} className="sip-input" style={{ width: 130, fontSize: 11 }} />
-          <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}>PDF</button>
-          <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}>Excel</button>
+          <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}
+            onClick={() => ekstrePdfAc([...acikFaturalar, ...kapananFaturalar], ekstreBaslangic, ekstreBitis, bakiye, tlKur)}>PDF</button>
+          <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}
+            onClick={() => ekstreExcelIndir([...acikFaturalar, ...kapananFaturalar], ekstreBaslangic, ekstreBitis, bakiye)}>Excel</button>
         </div>
       </div>
 
@@ -323,8 +428,8 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, kapali }) {
             <div key={ki} className="sip-kalem-detay-row"><span>{k.urunAd || k.urunKod} ({k.adet}x)</span><span>${fmt(k.toplam)}</span></div>
           ))}
           <div className="sip-fatura-actions">
-            <button className="sip-fatura-action">PDF</button>
-            <button className="sip-fatura-action">Excel</button>
+            <button className="sip-fatura-action" onClick={e => { e.stopPropagation(); faturaPdfAc(f, tlKur); }}>PDF</button>
+            <button className="sip-fatura-action" onClick={e => { e.stopPropagation(); faturaExcelIndir(f); }}>Excel</button>
           </div>
         </div>
       )}
