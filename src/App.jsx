@@ -46,7 +46,7 @@ const LANG = {
     pin_error: 'Geçersiz PIN veya bağlantı hatası', yukleniyor: 'Giriş yapılıyor...',
     oturumu_ac: 'Oturumu açık tut', oto_cikis: '15 dk hareketsizlikte otomatik çıkış',
     // SiparisPage
-    katalog: 'Katalog', ara: 'Ürün ara...', tumu: 'Tümü', kategori: 'Kategori', marka: 'Marka', supplier: 'Supplier',
+    katalog: 'Katalog', ara: 'Ürün ara...', tumu: 'Tümü', kategori: 'Kategori', marka: 'OEM Marka', supplier: 'Üretici',
     stokta: 'Stokta', stok_yok: 'Yok', bos_katalog: 'Katalogda ürün yok',
     ekle_placeholder: 'Ürün kodu veya adı yazın...', adet: 'Adet', adet_gir: '#',
     urun: 'Ürün', toplam: 'Toplam', sepet_bos: 'Sepet boş',
@@ -71,7 +71,7 @@ const LANG = {
     pin_sub: 'Login to order portal', pin_placeholder: '6-digit PIN', pin_btn: 'Login',
     pin_error: 'Invalid PIN or connection error', yukleniyor: 'Logging in...',
     oturumu_ac: 'Keep me signed in', oto_cikis: 'Auto-logout after 15 min of inactivity',
-    katalog: 'Catalog', ara: 'Search products...', tumu: 'All', kategori: 'Category', marka: 'Brand', supplier: 'Supplier',
+    katalog: 'Catalog', ara: 'Search products...', tumu: 'All', kategori: 'Category', marka: 'OEM Brand', supplier: 'Manufacturer',
     stokta: 'In stock', stok_yok: 'Out', bos_katalog: 'No products in catalog',
     ekle_placeholder: 'Type product code or name...', adet: 'Qty', adet_gir: '#',
     urun: 'Product', toplam: 'Total', sepet_bos: 'Cart is empty',
