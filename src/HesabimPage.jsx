@@ -25,7 +25,7 @@ function loadXLSX() {
 // ── Fatura PDF (popup + print) ──────────────────────
 function faturaPdfAc(f, tlKur) {
   const kalemRows = (f.kalemler || []).map(k =>
-    `<tr><td style="padding:6px 8px">${k.urunAd || k.urunKod}</td><td style="padding:6px 8px;text-align:center">${k.adet}</td><td style="padding:6px 8px;text-align:right">$${fmt(k.birimFiyat || 0)}</td><td style="padding:6px 8px;text-align:right">$${fmt(k.toplam || 0)}</td></tr>`
+    `<tr><td style="padding:6px 8px">${k.urunAd || k.urunKod}${k.not ? `<div style="font-size:10px;color:#888;font-style:italic;margin-top:2px">💬 ${k.not}</div>` : ''}</td><td style="padding:6px 8px;text-align:center">${k.adet}</td><td style="padding:6px 8px;text-align:right">$${fmt(k.birimFiyat || 0)}</td><td style="padding:6px 8px;text-align:right">$${fmt(k.toplam || 0)}</td></tr>`
   ).join('');
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Fatura ${f.no || ''}</title>
 <style>body{font-family:system-ui,sans-serif;padding:32px;color:#1a1a1a}h2{margin:0 0 4px}
@@ -51,12 +51,17 @@ async function faturaExcelIndir(f) {
   const rows = [['Fatura No', 'Tarih', 'Toplam ($)', 'Ödenen ($)', 'Kalan ($)'],
     [f.no || '', fmtD(f.tarih), f.tutar || 0, f.odenen || 0, f.kalan || 0]];
   if (f.kalemler && f.kalemler.length > 0) {
+    const hasNot = f.kalemler.some(k => k.not);
     rows.push([]);
-    rows.push(['Ürün', 'Adet', 'Birim Fiyat ($)', 'Toplam ($)']);
-    f.kalemler.forEach(k => rows.push([k.urunAd || k.urunKod, k.adet, k.birimFiyat || 0, k.toplam || 0]));
+    rows.push(hasNot ? ['Ürün', 'Adet', 'Birim Fiyat ($)', 'Toplam ($)', 'Not'] : ['Ürün', 'Adet', 'Birim Fiyat ($)', 'Toplam ($)']);
+    f.kalemler.forEach(k => {
+      const row = [k.urunAd || k.urunKod, k.adet, k.birimFiyat || 0, k.toplam || 0];
+      if (hasNot) row.push(k.not || '');
+      rows.push(row);
+    });
   }
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+  ws['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 30 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Fatura');
   XLSX.writeFile(wb, `Fatura_${f.no || 'export'}.xlsx`);
@@ -425,7 +430,10 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, kapali }) {
           {tlKur > 0 && <div className="sip-kalem-detay-row"><span>TL karşılığı</span><span>₺{fmt((f.tutar || 0) * tlKur, 0)}</span></div>}
           {f.kdvOrani > 0 && <div className="sip-kalem-detay-row"><span>KDV %{f.kdvOrani}</span><span>${fmt(f.kdvTutar)}</span></div>}
           {Array.isArray(f.kalemler) && f.kalemler.length > 0 && f.kalemler.map((k, ki) => (
-            <div key={ki} className="sip-kalem-detay-row"><span>{k.urunAd || k.urunKod} ({k.adet}x)</span><span>${fmt(k.toplam)}</span></div>
+            <div key={ki}>
+              <div className="sip-kalem-detay-row"><span>{k.urunAd || k.urunKod} ({k.adet}x)</span><span>${fmt(k.toplam)}</span></div>
+              {k.not && <div style={{ fontSize: 9, color: 'var(--sip-text-muted)', fontStyle: 'italic', paddingLeft: 8, marginTop: -2, marginBottom: 4 }}>💬 {k.not}</div>}
+            </div>
           ))}
           <div className="sip-fatura-actions">
             <button className="sip-fatura-action" onClick={e => { e.stopPropagation(); faturaPdfAc(f, tlKur); }}>PDF</button>
