@@ -216,9 +216,9 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
               </div>
             )}
             {acikFaturalar.length === 0 ? <div className="sip-empty">{t.fatura_yok}</div> : (
-              acikFaturalar.map((f, i) => (
+              [...acikFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : -1).map((f, i) => (
                 <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur}
-                  isOpen={openFaturaId === `a${i}`} onToggle={() => setOpenFaturaId(openFaturaId === `a${i}` ? null : `a${i}`)} />
+                  isOpen={openFaturaId === f.no} onToggle={() => setOpenFaturaId(openFaturaId === f.no ? null : f.no)} />
               ))
             )}
           </>
@@ -227,9 +227,9 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
         {/* ── Kapanan Faturalar (detay + PDF/Excel) ── */}
         {faturaTab === 'kapanan' && (
           kapananFaturalar.length === 0 ? <div className="sip-empty">Kapanan fatura yok</div> : (
-            kapananFaturalar.map((f, i) => (
+            [...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : -1).map((f, i) => (
               <FaturaCard key={f.no || i} f={{ ...f, kalan: 0, odenen: f.tutar }} t={t} tlKur={tlKur} kapali
-                isOpen={openFaturaId === `k${i}`} onToggle={() => setOpenFaturaId(openFaturaId === `k${i}` ? null : `k${i}`)} />
+                isOpen={openFaturaId === `k${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `k${f.no}` ? null : `k${f.no}`)} />
             ))
           )
         )}
