@@ -706,14 +706,20 @@ async function adminKatalogStokGuncelle(body) {
   let degisen = 0;
   let eklenen = 0;
 
-  // Mevcut ürünlerin stokVar güncelle
+  // Mevcut ürünlerin tüm alanlarını güncelle (upsert)
   katalog.urunler = katalog.urunler.map(u => {
     const g = guncellemeler.find(x => x.kod === u.kod);
-    if (g && u.stokVar !== g.stokVar) {
-      degisen++;
-      return { ...u, stokVar: g.stokVar };
-    }
-    return u;
+    if (!g) return u;
+    const updated = { ...u, stokVar: g.stokVar };
+    // Gelen bilgi varsa güncelle (boş/undefined gelirse eskiyi koru)
+    if (g.ad) updated.ad = g.ad;
+    if (g.parcaNo) updated.parcaNo = g.parcaNo;
+    if (g.supplier) updated.supplier = g.supplier;
+    if (g.marka) updated.marka = g.marka;
+    if (g.kategori) updated.kategori = g.kategori;
+    // Herhangi bir alan değiştiyse say
+    if (JSON.stringify(u) !== JSON.stringify(updated)) degisen++;
+    return updated;
   });
 
   // Yeni ürünler: katalogda olmayan + tam bilgisi gelen
@@ -732,8 +738,8 @@ async function adminKatalogStokGuncelle(body) {
     eklenen++;
   }
 
-  // Suppliers ve kategoriler setini güncelle (yeni ürünlerden gelen değerler)
-  if (eklenen > 0) {
+  // Suppliers ve kategoriler setini güncelle (yeni + değişen ürünlerden gelen değerler)
+  if (eklenen > 0 || degisen > 0) {
     const suppliersSet = new Set(katalog.suppliers || []);
     const kategorilerSet = new Set(katalog.kategoriler || []);
     for (const u of katalog.urunler) {
