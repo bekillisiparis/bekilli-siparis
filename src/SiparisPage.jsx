@@ -64,6 +64,9 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
     if (!a || a < 1) return;
     setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: a } : s));
   }
+  function sepetNotGuncelle(id, not) {
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, not: (not || '').slice(0, 500) } : s));
+  }
 
   async function siparisGonder() {
     if (sepet.length === 0 || busy) return;
@@ -89,9 +92,12 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
     try { await apiCall(API, pin, { islem: 'sil', siparisId }); await refreshSiparisler(); } catch (err) { showToast(t.hata + ': ' + err.message); }
     setBusy(false);
   }
-  async function kalemGuncelle(siparisId, kalemId, adet) {
+  async function kalemGuncelle(siparisId, kalemId, adet, not) {
     setBusy(true);
-    try { await apiCall(API, pin, { islem: 'guncelle', siparisId, kalemId, adet: parseInt(adet) }); await refreshSiparisler(); } catch (err) { showToast(t.hata + ': ' + err.message); }
+    const body = { islem: 'guncelle', siparisId, kalemId };
+    if (adet !== undefined) body.adet = parseInt(adet);
+    if (not !== undefined) body.not = not;
+    try { await apiCall(API, pin, body); await refreshSiparisler(); } catch (err) { showToast(t.hata + ': ' + err.message); }
     setBusy(false);
   }
   async function kalemSil(siparisId, kalemId) {
@@ -192,7 +198,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
         <div className={`sip-form-view ${mobileView !== 'form' ? 'sip-hide-mobile' : ''}`}>
           <SepetPanel
             t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
-            busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle}
+            busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle} onNotGuncelle={sepetNotGuncelle}
             onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar} showToast={showToast}
           />
         </div>
@@ -303,7 +309,7 @@ function SearchAddBar({ katalog, placeholder, onAdd, onSelect }) {
 }
 
 // ── Sepet Panel (Orta) ──────────────────────────────
-function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onNotGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
   const excelRef = useRef(null);
   const [excelBusy, setExcelBusy] = useState(false);
 
@@ -390,7 +396,7 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
             const f = fiyatlar[item.urunKod];
             const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
             return (
-              <div key={item.id} className="sip-kalem-row">
+              <div key={item.id} className="sip-kalem-row" style={{ flexWrap: 'wrap' }}>
                 <span className="sip-kalem-ad">
                   {item.urunAd}
                   {item.yeniUrunData && <span className="sip-badge sip-badge-hazir" style={{ marginLeft: 4, fontSize: 8 }}>NEW</span>}
@@ -401,6 +407,14 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
                   {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '?'}
                 </span>
                 <button className="sip-kalem-sil" onClick={() => onSil(item.id)}>×</button>
+                <input
+                  type="text" placeholder={t.not_placeholder || 'Not ekle...'} maxLength={500}
+                  value={item.not || ''}
+                  onChange={e => onNotGuncelle(item.id, e.target.value)}
+                  style={{ width: '100%', marginTop: 4, fontSize: 11, padding: '4px 8px', borderRadius: 6,
+                    border: '1px solid var(--sip-border)', background: 'var(--sip-bg-secondary)',
+                    color: 'var(--sip-text)', outline: 'none' }}
+                />
               </div>
             );
           })}
@@ -537,10 +551,15 @@ function SiparisCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKa
 function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, karsilamalar }) {
   const [editMode, setEditMode] = useState(false);
   const [yeniAdet, setYeniAdet] = useState(String(k.adet));
+  const [yeniNot, setYeniNot] = useState(k.not || '');
 
   function handleSave() {
     const a = parseInt(yeniAdet);
-    if (a && a !== k.adet && a >= 1) onGuncelle?.(grupId, k.id, a);
+    const adetDegisti = a && a !== k.adet && a >= 1;
+    const notDegisti = yeniNot !== (k.not || '');
+    if (adetDegisti || notDegisti) {
+      onGuncelle?.(grupId, k.id, adetDegisti ? a : undefined, notDegisti ? yeniNot : undefined);
+    }
     setEditMode(false);
   }
 
@@ -559,6 +578,12 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, kars
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="sip-kalem-ad">{k.urunAd}</div>
         <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{k.urunKod}</div>
+        {/* Kalem notu */}
+        {k.not && (
+          <div style={{ fontSize: 10, color: 'var(--sip-accent)', fontStyle: 'italic', marginTop: 2 }}>
+            📝 {k.not}
+          </div>
+        )}
         {/* M4: Hazırlanıyor */}
         {(k.hazirlanan || 0) > 0 && k.karsilanan < k.adet && (
           <span className="sip-badge sip-badge-hazir" style={{ fontSize: 8, marginTop: 2 }}>🔧 {k.hazirlanan} hazırlanıyor</span>
@@ -595,16 +620,21 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, kars
       </div>
       {editable && onSil && !editMode && (
         <div style={{ display: 'flex', gap: 4, width: '100%', marginTop: 4 }}>
-          <button className="sip-btn sip-btn-secondary" onClick={() => { setYeniAdet(String(k.adet)); setEditMode(true); }} disabled={busy} style={{ fontSize: 10 }}>{t.adet}</button>
+          <button className="sip-btn sip-btn-secondary" onClick={() => { setYeniAdet(String(k.adet)); setYeniNot(k.not || ''); setEditMode(true); }} disabled={busy} style={{ fontSize: 10 }}>{t.guncelle}</button>
           <button className="sip-btn sip-btn-danger" onClick={() => onSil(grupId, k.id)} disabled={busy} style={{ fontSize: 10 }}>{t.sil}</button>
         </div>
       )}
       {editMode && (
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: '100%', marginTop: 4 }}>
-          <input type="number" min="1" max="99999" value={yeniAdet} onChange={e => setYeniAdet(e.target.value)}
-            className="sip-input" style={{ width: 60, textAlign: 'center', fontSize: 14 }} />
-          <button className="sip-btn sip-btn-primary" onClick={handleSave} disabled={busy} style={{ fontSize: 10 }}>{t.guncelle}</button>
-          <button className="sip-btn sip-btn-secondary" onClick={() => setEditMode(false)} style={{ fontSize: 10 }}>{t.iptal_btn}</button>
+        <div style={{ width: '100%', marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="number" min="1" max="99999" value={yeniAdet} onChange={e => setYeniAdet(e.target.value)}
+              className="sip-input" style={{ width: 60, textAlign: 'center', fontSize: 14 }} />
+            <button className="sip-btn sip-btn-primary" onClick={handleSave} disabled={busy} style={{ fontSize: 10 }}>{t.guncelle}</button>
+            <button className="sip-btn sip-btn-secondary" onClick={() => setEditMode(false)} style={{ fontSize: 10 }}>{t.iptal_btn}</button>
+          </div>
+          <input type="text" placeholder={t.not_placeholder || 'Not...'} maxLength={500}
+            value={yeniNot} onChange={e => setYeniNot(e.target.value)}
+            className="sip-input" style={{ width: '100%', marginTop: 4, fontSize: 11 }} />
         </div>
       )}
     </div>
