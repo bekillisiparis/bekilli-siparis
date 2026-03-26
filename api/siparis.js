@@ -534,6 +534,8 @@ async function adminHesapGuncelle(body) {
           adet: parseInt(k.adet, 10) || 0,
           birimFiyat: parseFloat(k.birimFiyat) || 0,
           toplam: parseFloat(k.toplam) || 0,
+          // adminNot: müşteriye yönelik kalem notu (K6.11 kapsamı dışında)
+          ...(k.not ? { not: stripHtml(k.not).slice(0, 300) } : {}),
           // maliyet, alisFiyati, kar, marj, aciklama KASITLI OLARAK YOK (K6.11)
         }));
       }
@@ -548,6 +550,13 @@ async function adminHesapGuncelle(body) {
       tarih: f.tarih || '',
       tutar: parseFloat(f.tutar) || 0,
       doviz: stripHtml(f.doviz || 'USD'),
+      ...(parseFloat(f.kdvOrani) > 0 ? { kdvOrani: parseFloat(f.kdvOrani), kdvTutar: parseFloat(f.kdvTutar) || 0 } : {}),
+      ...(Array.isArray(f.kalemler) ? { kalemler: f.kalemler.map(k => ({
+        urunKod: stripHtml(k.urunKod || ''), urunAd: stripHtml(k.urunAd || ''),
+        adet: parseInt(k.adet, 10) || 0, birimFiyat: parseFloat(k.birimFiyat) || 0,
+        toplam: parseFloat(k.toplam) || 0,
+        ...(k.not ? { not: stripHtml(k.not).slice(0, 300) } : {}),
+      })) } : {}),
     }));
   }
 
