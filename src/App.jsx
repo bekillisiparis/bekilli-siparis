@@ -108,7 +108,7 @@ function appReducer(st, a) {
     case "LOGIN_OK": return { ...st, loading: false, loggedIn: true, pin: a.pin, musteri: a.musteri, siparisler: a.siparisler, hesap: a.hesap || null, sonYenileme: new Date(), fiyatlar: a.fiyatlar, katalog: a.katalog, apiSuppliers: a.apiSuppliers, apiKategoriler: a.apiKategoriler };
     case "LOGIN_FAIL": return { ...st, loading: false, error: a.error };
     case "LOGOUT": return { ...st, pin: '', musteri: null, loggedIn: false, siparisler: [], hesap: null, fiyatlar: {}, katalog: [], apiSuppliers: [], apiKategoriler: [] };
-    case "REFRESH_OK": return { ...st, siparisler: a.siparisler, hesap: a.hesap !== undefined ? a.hesap : st.hesap, sonYenileme: new Date() };
+    case "REFRESH_OK": return { ...st, siparisler: a.siparisler, hesap: a.hesap !== undefined ? a.hesap : st.hesap, sonYenileme: new Date(), ...(a.katalog ? { katalog: a.katalog } : {}), ...(a.fiyatlar !== undefined ? { fiyatlar: a.fiyatlar } : {}), ...(a.apiSuppliers ? { apiSuppliers: a.apiSuppliers } : {}), ...(a.apiKategoriler ? { apiKategoriler: a.apiKategoriler } : {}) };
     case "SET_LANG": return { ...st, lang: a.v };
     case "SET_THEME": return { ...st, theme: st.theme === 'dark' ? 'light' : 'dark' };
     case "SET_KEEP_SESSION": return { ...st, keepSession: a.v };
@@ -188,11 +188,28 @@ export default function App() {
     };
   }, [loggedIn, keepSession]); // eslint-disable-line
 
+  const lastRefreshRef = useRef(0);
+  const REFRESH_COOLDOWN = 5000; // 5 saniye minimum yenileme aralığı
+
   async function refreshSiparisler() {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < REFRESH_COOLDOWN) return;
+    lastRefreshRef.current = now;
     try {
-      const data = await apiCall(API, pin);
-      dispatch({ type: "REFRESH_OK", siparisler: data.siparisler || [], hesap: data.hesap || null });
-    } catch (err) { console.warn('Sipariş yenileme hatası:', err.message); }
+      const [userData, katData] = await Promise.all([
+        apiCall(API, pin),
+        apiCall(`${API}?katalog=1`),
+      ]);
+      dispatch({
+        type: "REFRESH_OK",
+        siparisler: userData.siparisler || [],
+        hesap: userData.hesap || null,
+        fiyatlar: extractFiyatlar(userData.fiyatlar),
+        katalog: katData.urunler || [],
+        apiSuppliers: katData.suppliers || [],
+        apiKategoriler: katData.kategoriler || [],
+      });
+    } catch (err) { console.warn('Yenileme hatası:', err.message); }
   }
 
   if (!loggedIn) {
@@ -256,6 +273,12 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); }, []);
 
+  // Sayfa geçişinde otomatik yenileme
+  const changePage = useCallback((p) => {
+    setPage(p);
+    refreshSiparisler();
+  }, [refreshSiparisler]);
+
   const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi' || s.durum === 'hazirlaniyor').length;
   const okunmamisSayisi = (hesap?.bildirimler || []).filter(b => !b.okundu).length;
 
@@ -267,11 +290,11 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           <span>Bekilli</span> Group
         </div>
         <div className="sip-topnav-center">
-          <button className={`sip-page-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => setPage('hesabim')}>
+          <button className={`sip-page-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
             {t.hesabim}
             {okunmamisSayisi > 0 && <span className="sip-notif-dot" />}
           </button>
-          <button className={`sip-page-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => setPage('siparis')}>
+          <button className={`sip-page-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => changePage('siparis')}>
             {t.siparis}
             {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
           </button>
@@ -307,12 +330,12 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
 
       {/* ── Mobile Bottom Nav ── */}
       <div className="sip-mobile-bar">
-        <button className={`sip-mobile-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => setPage('hesabim')}>
+        <button className={`sip-mobile-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
           <AccountIcon />
           <span>{t.hesabim}</span>
           {okunmamisSayisi > 0 && <span className="sip-notif-dot" />}
         </button>
-        <button className={`sip-mobile-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => setPage('siparis')}>
+        <button className={`sip-mobile-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => changePage('siparis')}>
           <OrderIcon />
           <span>{t.siparis}</span>
           {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
