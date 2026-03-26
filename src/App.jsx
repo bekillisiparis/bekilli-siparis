@@ -30,8 +30,11 @@ async function apiCall(url, pin, body) {
 
 function extractFiyatlar(raw) {
   if (!raw || typeof raw !== 'object') return {};
+  // API döner: { guncelleme, fiyatlar: { "KOD": {fiyat,doviz} }, oncekiFiyatlar }
+  // Nested format ise iç fiyatlar objesini kullan
+  const source = (raw.fiyatlar && typeof raw.fiyatlar === 'object' && !raw.fiyat) ? raw.fiyatlar : raw;
   const out = {};
-  for (const [kod, val] of Object.entries(raw)) {
+  for (const [kod, val] of Object.entries(source)) {
     if (val && typeof val === 'object') out[kod] = val;
     else if (typeof val === 'number') out[kod] = { fiyat: val, doviz: 'USD' };
   }
