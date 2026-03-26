@@ -53,6 +53,7 @@ const LANG = {
     satirlar: 'satır', topAdet: 'adet', fiyatli_toplam: 'Fiyatlı toplam', fiyat_sorun_kalem: 'Fiyat sorulacak',
     gonder: 'Sipariş Gönder', gonderiliyor: 'Gönderiliyor...', gonderildi: 'gönderildi',
     hata: 'Hata', iptal_btn: 'İptal', guncelle: 'Güncelle', sil: 'Sil',
+    not_placeholder: 'Not ekle (opsiyonel)...',
     // Takip
     takip: 'Takip', bos_siparis: 'Henüz sipariş yok',
     beklemede: 'Beklemede', hazirlaniyor: 'Hazırlanıyor', kismi: 'Kısmi', tamamlandi: 'Tamamlandı', iptal_durum: 'İptal',
@@ -78,6 +79,7 @@ const LANG = {
     satirlar: 'items', topAdet: 'pcs', fiyatli_toplam: 'Priced total', fiyat_sorun_kalem: 'Price pending',
     gonder: 'Send Order', gonderiliyor: 'Sending...', gonderildi: 'sent',
     hata: 'Error', iptal_btn: 'Cancel', guncelle: 'Update', sil: 'Delete',
+    not_placeholder: 'Add note (optional)...',
     takip: 'Tracking', bos_siparis: 'No orders yet',
     beklemede: 'Pending', hazirlaniyor: 'Preparing', kismi: 'Partial', tamamlandi: 'Completed', iptal_durum: 'Cancelled',
     bakiye: 'Balance', borc_durumu: 'Debtor', alacak_durumu: 'Creditor',

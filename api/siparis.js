@@ -1,1311 +1,642 @@
-// /api/siparis.js — Bekilli Sipariş Sistemi Vercel Serverless Function v2.0
-// Müşteri: X-Siparis-PIN ile auth → sipariş ekle/sil/güncelle/oku
-// Admin: X-Admin-PIN ile auth → katalog yayınla, müşteri/fiyat/hesap güncelle, sipariş karşıla/iptal
-// Gist: Katalog (public) + Sipariş (private, müşteri başına dosya)
+// ══════════════════════════════════════════════════════════════════════
+// Bekilli Group — Portal v4: SiparisPage
+// 3 panel: Katalog Accordion (sol) + Sipariş Formu (orta) + Takip (sağ)
+// ══════════════════════════════════════════════════════════════════════
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
-import { createHash, randomUUID } from 'crypto';
+const API = '/api/siparis';
 
-// ── ENV ──────────────────────────────────────────────
-const TOKEN      = process.env.SIPARIS_GIST_TOKEN;
-const SIP_GIST   = process.env.SIPARIS_GIST_ID;
-const KAT_GIST   = process.env.KATALOG_GIST_ID;
-const ADMIN_PIN_HASH = process.env.ADMIN_PIN_HASH; // SHA-256, Vercel env'de
-const MUSTERI_ORIGIN = 'https://bekilli-siparis.vercel.app';
-const ADMIN_ORIGIN   = 'https://bekilli-stok.vercel.app';
-
-// ── Rate Limit (in-memory, cold start'ta sıfırlanır) ─
-const ipHits = {};
-const IP_LIMIT = 30;      // dakikada max istek
-const IP_BAN_LIMIT = 5;   // hatalı PIN denemesi (müşteri)
-const IP_BAN_MINUTES = 15;
-const ADMIN_BAN_LIMIT = 3;   // hatalı admin PIN denemesi (daha sıkı)
-const ADMIN_BAN_MINUTES = 30;
-const ipBans = {};
-
-function rateCheck(ip) {
-  const now = Date.now();
-  // Ban kontrolü
-  if (ipBans[ip] && now < ipBans[ip]) return 'banned';
-  // Rate limit
-  if (!ipHits[ip]) ipHits[ip] = [];
-  ipHits[ip] = ipHits[ip].filter(t => now - t < 60000);
-  if (ipHits[ip].length >= IP_LIMIT) return 'limited';
-  ipHits[ip].push(now);
-  return 'ok';
+// ── XLSX CDN yükle (script tag — Vite production uyumlu) ──
+function loadXLSX() {
+  if (window._XLSX_FULL) return Promise.resolve(window._XLSX_FULL);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => { window._XLSX_FULL = window.XLSX; res(window.XLSX); };
+    s.onerror = () => rej(new Error('SheetJS CDN yüklenemedi'));
+    document.head.appendChild(s);
+  });
 }
 
-function recordFailedPin(ip) {
-  const key = `fail_${ip}`;
-  if (!ipHits[key]) ipHits[key] = [];
-  ipHits[key].push(Date.now());
-  const recent = ipHits[key].filter(t => Date.now() - t < 60000);
-  ipHits[key] = recent;
-  if (recent.length >= IP_BAN_LIMIT) {
-    ipBans[ip] = Date.now() + IP_BAN_MINUTES * 60000;
-  }
-}
+// ── Excel şablon sütunları ──────────────────────────
+const SABLON_SUTUNLAR = ['ÜRÜN KODU', 'ÜRÜN ADI (opsiyonel)', 'ADET', 'NOT'];
+const SABLON_ORNEK = [
+  ['3264700-AMBAC', 'Nozzle 3264700', 5, ''],
+  ['5228275-STANADYNE', '', 2, 'Acil'],
+];
 
-function recordFailedAdminPin(ip) {
-  const key = `afail_${ip}`;
-  if (!ipHits[key]) ipHits[key] = [];
-  ipHits[key].push(Date.now());
-  const recent = ipHits[key].filter(t => Date.now() - t < 60000);
-  ipHits[key] = recent;
-  if (recent.length >= ADMIN_BAN_LIMIT) {
-    ipBans[ip] = Date.now() + ADMIN_BAN_MINUTES * 60000;
-  }
-}
-
-// ── Helpers ──────────────────────────────────────────
-async function hashPin(pin) {
-  return createHash('sha256').update(String(pin)).digest('hex');
-}
-
-function stripHtml(str) {
-  return String(str || '').replace(/<[^>]*>/g, '').trim();
-}
-
-function validateAdet(val) {
-  const n = parseInt(val, 10);
-  if (!Number.isInteger(n) || n < 1 || n > 99999) return null;
-  return n;
-}
-
-function validateText(val, maxLen) {
-  const s = stripHtml(val).slice(0, maxLen);
-  return s || null;
-}
-
-// ── Gist API ─────────────────────────────────────────
-const GIST_API = 'https://api.github.com/gists';
-const gistHeaders = {
-  'Authorization': `Bearer ${TOKEN}`,
-  'Accept': 'application/vnd.github+json',
-  'X-GitHub-Api-Version': '2022-11-28',
-  'User-Agent': 'BekilliSiparis/1.0',
-};
-// PUBLIC Gist için auth gereksiz (token sorunu olsa bile çalışır)
-const publicHeaders = {
-  'Accept': 'application/vnd.github+json',
-  'X-GitHub-Api-Version': '2022-11-28',
-  'User-Agent': 'BekilliSiparis/1.0',
-};
-
-async function gistRead(gistId, isPublic = false) {
-  const hdrs = isPublic ? publicHeaders : gistHeaders;
-  const res = await fetch(`${GIST_API}/${gistId}`, { headers: hdrs });
-  if (!res.ok) throw new Error(`Gist okuma hatası: ${res.status}`);
+async function apiCall(url, pin, body) {
+  const opts = { headers: {} };
+  if (pin) opts.headers['X-Siparis-PIN'] = pin;
+  if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(url, opts);
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.hata || `HTTP ${res.status}`); }
   return res.json();
 }
 
-async function gistReadFile(gistId, filename, isPublic = false) {
-  const gist = await gistRead(gistId, isPublic);
-  const file = gist.files?.[filename];
-  if (!file) return null;
-  // Truncated dosya kontrolü (1MB+ dosyalar)
-  let content = file.content;
-  if (file.truncated && file.raw_url) {
-    const hdrs = isPublic ? publicHeaders : gistHeaders;
-    const raw = await fetch(file.raw_url, { headers: hdrs });
-    if (!raw.ok) throw new Error(`Gist raw okuma hatası: ${raw.status}`);
-    content = await raw.text();
-  }
-  try { return JSON.parse(content); } catch { return null; }
-}
+// ── SiparisPage ─────────────────────────────────────
+export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, refreshSiparisler, showToast, sikAlinanlar }) {
+  const [sepet, setSepet] = useState([]);
+  const [busy, setBusy] = useState(false);
+  // Filtreler
+  const [katFilter, setKatFilter] = useState('');
+  const [markaFilter, setMarkaFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [search, setSearch] = useState('');
+  // Mobil sub-tab (sipariş formu vs takip)
+  const [mobileView, setMobileView] = useState('form');
 
-async function gistWriteFile(gistId, filename, data, _retries = 0) {
-  const res = await fetch(`${GIST_API}/${gistId}`, {
-    method: 'PATCH',
-    headers: { ...gistHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      files: { [filename]: { content: JSON.stringify(data) } }
-    }),
-  });
-  if (!res.ok) {
-    // 409 Conflict: Eşzamanlı yazım çakışması — 1sn bekle, 2 kez dene
-    if (res.status === 409 && _retries < 2) {
-      await new Promise(r => setTimeout(r, 1000 + _retries * 500));
-      return gistWriteFile(gistId, filename, data, _retries + 1);
-    }
-    const txt = await res.text().catch(() => '');
-    throw new Error(`Gist yazma hatası: ${res.status}`);
-  }
-  return true;
-}
-
-// ── PIN → Müşteri doğrulama ─────────────────────────
-// GÜVENLİK: musteriler.json PRIVATE Gist'te (SIP_GIST)
-// PUBLIC Gist'te (KAT_GIST) müşteri bilgisi ASLA bulunmaz
-async function authenticatePin(pin) {
-  const hash = await hashPin(pin);
-  const musteriler = await gistReadFile(SIP_GIST, 'musteriler.json');
-  if (!musteriler?.length) return null;
-  return musteriler.find(m => m.pinHash === hash) || null;
-}
-
-// ── Müşteri fiyat dosyası okuma ─────────────────────
-async function readFiyatlar(musteriId) {
-  const filename = `fiyat_${musteriId}.json`;
-  const data = await gistReadFile(SIP_GIST, filename);
-  return data || {};
-}
-
-// ── Sipariş dosyası okuma/yazma ─────────────────────
-async function readSiparisler(musteriId) {
-  const filename = `siparisler_${musteriId}.json`;
-  const data = await gistReadFile(SIP_GIST, filename);
-  return data || { musteriId, siparisler: [] };
-}
-
-async function writeSiparisler(musteriId, data) {
-  const filename = `siparisler_${musteriId}.json`;
-  data.sonGuncelleme = new Date().toISOString();
-  return gistWriteFile(SIP_GIST, filename, data);
-}
-
-// ── Grup Durum Hesaplama (Karma: otomatik + override) ─
-function deriveDurum(kalemler, durumOverride) {
-  if (durumOverride) return durumOverride; // Admin override varsa o geçerli
-  if (!kalemler || kalemler.length === 0) return 'beklemede';
-  const hepsiTamam = kalemler.every(k => k.karsilanan >= k.adet);
-  if (hepsiTamam) return 'tamamlandi';
-  // M2: Taslak fatura hazırlanıyorsa → "hazırlaniyor" durumu
-  // hicKarsilanmamis: hiç karşılama yapılmamış (ama hazırlanan olabilir)
-  const hicKarsilanmamis = kalemler.every(k => k.karsilanan === 0);
-  const hazırlananVar = kalemler.some(k => (k.hazirlanan || 0) > 0 && k.karsilanan < k.adet);
-  if (hazırlananVar && hicKarsilanmamis) return 'hazirlaniyor';
-  if (hicKarsilanmamis) return 'beklemede';
-  return 'kismi';
-}
-
-// ── İşlem: Sipariş Ekle (Toplu — tüm sepet tek grup) ──
-function handleEkle(sipData, body) {
-  const kalemlerRaw = body.kalemler;
-  if (!Array.isArray(kalemlerRaw) || kalemlerRaw.length === 0) {
-    return { hata: 'En az 1 kalem gerekli', status: 400 };
-  }
-  if (kalemlerRaw.length > 200) {
-    return { hata: 'Tek siparişte en fazla 200 kalem', status: 400 };
-  }
-
-  const kalemler = [];
-  for (const k of kalemlerRaw) {
-    const urunKod = validateText(k.urunKod, 100);
-    const urunAd  = validateText(k.urunAd, 200);
-    const adet    = validateAdet(k.adet);
-    if (!urunKod) return { hata: 'Ürün kodu gerekli', status: 400 };
-    if (!adet)    return { hata: `Geçerli adet giriniz: ${urunKod}`, status: 400 };
-
-    const kalem = {
-      id: randomUUID(),
-      urunKod,
-      urunAd: urunAd || urunKod,
-      adet,
-      karsilanan: 0,
-      not: stripHtml(k.not || '').slice(0, 500),
-    };
-
-    if (k.yeniUrun) {
-      kalem.yeniUrun = true;
-      kalem.parcaNo  = validateText(k.parcaNo, 50) || '';
-      kalem.supplier = validateText(k.supplier, 50) || '';
-      kalem.kategori = validateText(k.kategori, 50) || '';
-    }
-
-    kalemler.push(kalem);
-  }
-
-  const siparis = {
-    id: randomUUID(),
-    tarih: new Date().toISOString(),
-    durumOverride: null,
-    kalemler,
-    karsilamalar: [],
-  };
-
-  sipData.siparisler.push(siparis);
-  return { ok: true, siparis: { ...siparis, durum: deriveDurum(kalemler, null) } };
-}
-
-// ── İşlem: Sipariş Grubu Sil ───────────────────────────
-function handleSil(sipData, body) {
-  const siparisId = body.siparisId;
-  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
-
-  const idx = sipData.siparisler.findIndex(s => s.id === siparisId);
-  if (idx === -1) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const sip = sipData.siparisler[idx];
-  const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-  // Karşılanmaya başlanmış veya tamamlanmış sipariş silinemez
-  if (durum === 'kismi' || durum === 'tamamlandi') {
-    return { hata: 'Karşılanmaya başlanmış sipariş silinemez', status: 400 };
-  }
-
-  sipData.siparisler.splice(idx, 1);
-  return { ok: true };
-}
-
-// ── İşlem: Sipariş Kalem Güncelle (adet/not) ───────────
-function handleGuncelle(sipData, body) {
-  const siparisId = body.siparisId;
-  const kalemId   = body.kalemId;
-  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
-  if (!kalemId)   return { hata: 'kalemId gerekli', status: 400 };
-
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-  if (durum === 'tamamlandi' || durum === 'iptal') {
-    return { hata: 'Bu sipariş değiştirilemez', status: 400 };
-  }
-
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
-
-  if (body.adet !== undefined) {
-    const adet = validateAdet(body.adet);
-    if (!adet) return { hata: 'Geçerli adet giriniz (1-99999)', status: 400 };
-    if (adet < kalem.karsilanan) {
-      return { hata: `Adet karşılanan miktardan (${kalem.karsilanan}) az olamaz`, status: 400 };
-    }
-    kalem.adet = adet;
-  }
-  if (body.not !== undefined) {
-    kalem.not = stripHtml(body.not).slice(0, 500);
-  }
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
-}
-
-// ── İşlem: Sipariş Kalem Sil ───────────────────────────
-function handleKalemSil(sipData, body) {
-  const siparisId = body.siparisId;
-  const kalemId   = body.kalemId;
-  if (!siparisId || !kalemId) return { hata: 'siparisId ve kalemId gerekli', status: 400 };
-
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
-  if (kalem.karsilanan > 0) return { hata: 'Karşılanmış kalem silinemez', status: 400 };
-
-  sip.kalemler = sip.kalemler.filter(k => k.id !== kalemId);
-
-  // Grup boşaldıysa grubu da sil
-  if (sip.kalemler.length === 0) {
-    sipData.siparisler = sipData.siparisler.filter(s => s.id !== siparisId);
-    return { ok: true, grupSilindi: true };
-  }
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
-}
-
-// ── CORS Preflight ───────────────────────────────────
-function corsHeaders(origin) {
-  // Müşteri, admin ve development origin'leri
-  const isAllowed = origin === MUSTERI_ORIGIN
-    || origin === ADMIN_ORIGIN
-    || origin?.startsWith('http://localhost');
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : MUSTERI_ORIGIN,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Siparis-PIN, X-Admin-PIN',
-    'Access-Control-Max-Age': '86400',
-  };
-}
-
-function isAdminOrigin(origin) {
-  return origin === ADMIN_ORIGIN || origin?.startsWith('http://localhost');
-}
-
-// ── Admin PIN doğrulama ──────────────────────────────
-// Önce Gist'teki dinamik hash'e bak (PIN Değiştir ile güncellenir)
-// Yoksa Vercel env ADMIN_PIN_HASH'e fallback (ilk kurulum)
-let _cachedAdminHash = null; // cold start'ta null, ilk auth'ta Gist'ten okunur
-async function getAdminHash() {
-  if (_cachedAdminHash) return _cachedAdminHash;
-  try {
-    const stored = await gistReadFile(SIP_GIST, 'admin_config.json');
-    if (stored?.pinHash) { _cachedAdminHash = stored.pinHash; return _cachedAdminHash; }
-  } catch (e) { console.warn("getAdminHash Gist okunamadı, env fallback:", e.message); }
-  _cachedAdminHash = ADMIN_PIN_HASH || null;
-  return _cachedAdminHash;
-}
-async function authenticateAdmin(pin) {
-  const targetHash = await getAdminHash();
-  if (!targetHash) return false;
-  const hash = await hashPin(pin);
-  return hash === targetHash;
-}
-
-// ── Admin: PIN Değiştir ─────────────────────────────
-// CloudSync PinDegistir'den çağrılır. Yeni hash'i Gist'e yazar.
-async function adminPinGuncelle(body) {
-  const { yeniHash } = body;
-  if (!yeniHash || !/^[a-f0-9]{64}$/.test(yeniHash)) {
-    return { hata: 'Geçerli SHA-256 hash gerekli', status: 400 };
-  }
-  await gistWriteFile(SIP_GIST, 'admin_config.json', { pinHash: yeniHash, guncelleme: new Date().toISOString() });
-  _cachedAdminHash = yeniHash; // cache güncelle
-  return { ok: true };
-}
-
-// ── Admin: Katalog Yayınla ──────────────────────────
-// Ana uygulamadan gelen ürün listesini PUBLIC Gist'e yazar
-// Yayınlamadan önce mevcut kataloğu _prev olarak yedekler (K6.15)
-async function adminKatalogYayinla(body) {
-  const { urunler, suppliers, kategoriler } = body;
-  if (!Array.isArray(urunler) || urunler.length === 0) {
-    return { hata: 'Ürün listesi boş', status: 400 };
-  }
-
-  // Ürün validasyonu
-  for (const u of urunler) {
-    if (!u.kod || !u.ad) return { hata: `Ürün eksik: kod ve ad zorunlu (${u.kod || '?'})`, status: 400 };
-    // XSS temizleme (K6.9)
-    u.kod = stripHtml(u.kod);
-    u.ad = stripHtml(u.ad);
-    u.parcaNo = stripHtml(u.parcaNo || '');
-    u.supplier = stripHtml(u.supplier || '');
-    u.marka = stripHtml(u.marka || '');
-    u.kategori = stripHtml(u.kategori || '');
-  }
-
-  // Mevcut kataloğu yedekle (K6.15 — yayınlama yedeği)
-  try {
-    const mevcutKatalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
-    if (mevcutKatalog) {
-      await gistWriteFile(KAT_GIST, '_prev_katalog.json', mevcutKatalog);
-    }
-  } catch (err) {
-    console.error('Katalog yedekleme hatası (devam ediliyor):', err.message);
-    // Yedekleme başarısız olsa da yayınlamaya devam et — veri kaybı riski yok
-  }
-
-  const katalog = {
-    guncelleme: new Date().toISOString(),
-    apiVersion: '2.0',
-    suppliers: (suppliers || []).map(s => stripHtml(s)),
-    kategoriler: (kategoriler || []).map(k => stripHtml(k)),
-    urunler,
-  };
-
-  await gistWriteFile(KAT_GIST, 'katalog.json', katalog);
-
-  return {
-    ok: true,
-    urunSayisi: urunler.length,
-    supplierSayisi: katalog.suppliers.length,
-    kategoriSayisi: katalog.kategoriler.length,
-  };
-}
-
-// ── Admin: Müşteri Listesi Güncelle ─────────────────
-// PIN hash'leri PRIVATE Gist'te, admin ekler/günceller/siler
-async function adminMusterilerGuncelle(body) {
-  const { musteriler } = body;
-  if (!Array.isArray(musteriler)) {
-    return { hata: 'Müşteri listesi geçersiz', status: 400 };
-  }
-
-  // Validasyon
-  for (const m of musteriler) {
-    if (!m.id || !m.ad) {
-      return { hata: `Müşteri eksik: id ve ad zorunlu (${m.id || '?'})`, status: 400 };
-    }
-    m.ad = stripHtml(m.ad);
-    // firmaId — ana uygulamadaki müşteri bağlantısı
-    if (m.firmaId) m.firmaId = stripHtml(m.firmaId);
-    // M6: pinHash opsiyonel — null/absent = müşteri portala login edemez ama veri sync çalışır
-    if (m.pinHash) {
-      if (!/^[a-f0-9]{64}$/.test(m.pinHash)) {
-        return { hata: `Geçersiz PIN hash formatı: ${m.id}`, status: 400 };
-      }
-    } else {
-      m.pinHash = null; // normalize: undefined → null
-    }
-  }
-
-  // ID tekrarı kontrolü
-  const ids = musteriler.map(m => m.id);
-  if (new Set(ids).size !== ids.length) {
-    return { hata: 'Müşteri ID\'leri benzersiz olmalı', status: 400 };
-  }
-
-  await gistWriteFile(SIP_GIST, 'musteriler.json', musteriler);
-
-  return { ok: true, musteriSayisi: musteriler.length };
-}
-
-// ── Admin: Müşteri Fiyat Güncelle ───────────────────
-// Müşteriye özel fiyatları PRIVATE Gist'e yazar
-async function adminFiyatGuncelle(body) {
-  const { musteriId, fiyatlar, oncekiFiyatlar } = body;
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-  if (!fiyatlar || typeof fiyatlar !== 'object') {
-    return { hata: 'fiyatlar objesi gerekli', status: 400 };
-  }
-
-  // K6.11: Alış maliyeti, kâr marjı bilgisi ASLA yazılmamalı
-  // Sadece satış fiyatı + döviz + sabit flag kabul edilir
-  const temizFiyatlar = {};
-  for (const [kod, val] of Object.entries(fiyatlar)) {
-    if (!val || typeof val !== 'object') continue;
-    temizFiyatlar[stripHtml(kod)] = {
-      fiyat: parseFloat(val.fiyat) || 0,
-      doviz: stripHtml(val.doviz || 'USD'),
-      sabit: !!val.sabit,
-    };
-  }
-
-  const data = {
-    guncelleme: new Date().toISOString(),
-    fiyatlar: temizFiyatlar,
-    oncekiFiyatlar: oncekiFiyatlar || {},
-  };
-
-  await gistWriteFile(SIP_GIST, `fiyat_${stripHtml(musteriId)}.json`, data);
-
-  return { ok: true, fiyatSayisi: Object.keys(temizFiyatlar).length };
-}
-
-// ── Admin: Hesap Güncelle ───────────────────────────
-// Bakiye, açık faturalar, ödeme geçmişi, sipariş geçmişi
-// K6.11: SADECE satış fiyatları — alış maliyeti/kâr marjı ASLA
-async function adminHesapGuncelle(body) {
-  const { musteriId, bakiye, acikFaturalar, sonOdemeler, sipariGecmisi, sikAlinanlar,
-          kapananFaturalar, yeniBildirimler } = body;
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-
-  // Mevcut hesap verisi oku (bildirim merge için)
-  const sanitizedId = stripHtml(musteriId);
-  let mevcutData = {};
-  try {
-    mevcutData = await gistReadFile(SIP_GIST, `hesap_${sanitizedId}.json`) || {};
-  } catch (e) { /* ilk yazım, dosya yok */ }
-
-  const data = {
-    guncelleme: new Date().toISOString(),
-  };
-
-  // Bakiye
-  if (bakiye && typeof bakiye === 'object') {
-    data.bakiye = {
-      toplamBorc: parseFloat(bakiye.toplamBorc) || 0,
-      toplamAlacak: parseFloat(bakiye.toplamAlacak) || 0,
-      net: parseFloat(bakiye.net) || 0,
-      doviz: stripHtml(bakiye.doviz || 'USD'),
-    };
-  }
-
-  // Açık faturalar — K6.11 kontrolü (zenginleştirilmiş alanlar)
-  if (Array.isArray(acikFaturalar)) {
-    data.acikFaturalar = acikFaturalar.map(f => {
-      const temiz = {
-        no: stripHtml(f.no || ''),
-        tarih: f.tarih || '',
-        tutar: parseFloat(f.tutar) || 0,
-        odenen: parseFloat(f.odenen) || 0,
-        kalan: parseFloat(f.kalan) || 0,
-        doviz: stripHtml(f.doviz || 'USD'),
-      };
-      // Portal v3 zengin alanlar
-      if (f.faturaId)     temiz.faturaId = stripHtml(f.faturaId);
-      if (f.orijinalDoviz && f.orijinalDoviz !== 'USD') {
-        temiz.orijinalDoviz = stripHtml(f.orijinalDoviz);
-        temiz.orijinalTutar = parseFloat(f.orijinalTutar) || 0;
-        temiz.orijinalKur   = parseFloat(f.orijinalKur) || 0;
-      }
-      if (parseFloat(f.kdvOrani) > 0) {
-        temiz.kdvOrani = parseFloat(f.kdvOrani);
-        temiz.kdvTutar = parseFloat(f.kdvTutar) || 0;
-      }
-      if (f.gecikmeGun !== undefined && f.gecikmeGun !== null) {
-        temiz.gecikmeGun = parseInt(f.gecikmeGun, 10) || 0;
-      }
-      // Kalemler — SADECE satış fiyatı (birimFiyat), maliyet ASLA
-      if (Array.isArray(f.kalemler)) {
-        temiz.kalemler = f.kalemler.map(k => ({
-          urunKod: stripHtml(k.urunKod || ''),
-          urunAd: stripHtml(k.urunAd || ''),
-          adet: parseInt(k.adet, 10) || 0,
-          birimFiyat: parseFloat(k.birimFiyat) || 0,
-          toplam: parseFloat(k.toplam) || 0,
-          // maliyet, alisFiyati, kar, marj, aciklama KASITLI OLARAK YOK (K6.11)
-        }));
-      }
-      return temiz;
+  // ── Sepet işlemleri ───────────────────────────────
+  const sepeteEkle = useCallback((urunKod, urunAd, adet, not, yeniUrunData) => {
+    const qty = parseInt(adet) || 1;
+    setSepet(prev => {
+      const existing = prev.find(s => s.urunKod === urunKod);
+      if (existing) return prev.map(s => s.urunKod === urunKod ? { ...s, adet: s.adet + qty } : s);
+      return [...prev, { id: Date.now(), urunKod, urunAd: urunAd || urunKod, adet: qty, not: not || '', yeniUrunData }];
     });
+    showToast(`${urunKod} eklendi`);
+    setMobileView('form');
+  }, [showToast]);
+
+  function sepettenSil(id) { setSepet(prev => prev.filter(s => s.id !== id)); }
+  function sepetAdetGuncelle(id, yeniAdet) {
+    const a = parseInt(yeniAdet);
+    if (!a || a < 1) return;
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: a } : s));
+  }
+  function sepetNotGuncelle(id, not) {
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, not: (not || '').slice(0, 500) } : s));
   }
 
-  // Kapanan faturalar (son 20 özet)
-  if (Array.isArray(kapananFaturalar)) {
-    data.kapananFaturalar = kapananFaturalar.slice(-20).map(f => ({
-      no: stripHtml(f.no || ''),
-      tarih: f.tarih || '',
-      tutar: parseFloat(f.tutar) || 0,
-      doviz: stripHtml(f.doviz || 'USD'),
-    }));
-  }
-
-  // Son ödemeler (tahsilatlar + mahsuplaşmalar, FIFO eşleşme detaylı)
-  if (Array.isArray(sonOdemeler)) {
-    data.sonOdemeler = sonOdemeler.map(o => ({
-      tarih: o.tarih || '',
-      tutar: parseFloat(o.tutar) || 0,
-      doviz: stripHtml(o.doviz || 'USD'),
-      ...(o.orijinalTutar ? { orijinalTutar: parseFloat(o.orijinalTutar) || 0 } : {}),
-      yontem: stripHtml(o.yontem || ''),
-      tip: stripHtml(o.tip || 'tahsilat'), // tahsilat | mahsup
-      // FIFO eşleşme: hangi faturayı ne kadar kapattı
-      ...(Array.isArray(o.eslesmeler) && o.eslesmeler.length > 0 ? {
-        eslesmeler: o.eslesmeler.map(e => ({
-          faturaNo: stripHtml(e.faturaNo || ''),
-          kapatilan: parseFloat(e.kapatilan) || 0,
-        })),
-      } : {}),
-      aciklama: stripHtml(o.aciklama || ''),
-    }));
-  }
-
-  // Sipariş geçmişi
-  if (Array.isArray(sipariGecmisi)) {
-    data.sipariGecmisi = sipariGecmisi.map(s => ({
-      tarih: s.tarih || '',
-      kalemler: Array.isArray(s.kalemler) ? s.kalemler.map(k => ({
-        urunKod: stripHtml(k.urunKod || ''),
-        urunAd: stripHtml(k.urunAd || ''),
-        adet: parseInt(k.adet, 10) || 0,
-        // birimFiyat ve toplam SADECE satış fiyatı
-        ...(k.birimFiyat !== undefined ? { birimFiyat: parseFloat(k.birimFiyat) || 0 } : {}),
-        ...(k.toplam !== undefined ? { toplam: parseFloat(k.toplam) || 0 } : {}),
-      })) : [],
-      toplamTutar: parseFloat(s.toplamTutar) || 0,
-      doviz: stripHtml(s.doviz || 'USD'),
-    }));
-  }
-
-  // Bekleyen iadeler (mahsuplaştırılmamış iade alacakları)
-  if (Array.isArray(body.bekleyenIadeler)) {
-    data.bekleyenIadeler = body.bekleyenIadeler.map(f => ({
-      no: stripHtml(f.no || ''),
-      tarih: f.tarih || '',
-      tutar: parseFloat(f.tutar) || 0,
-      doviz: stripHtml(f.doviz || 'USD'),
-      aciklama: stripHtml(f.aciklama || ''),
-      // Kalemler — satış fiyatı, maliyet ASLA (K6.11)
-      ...(Array.isArray(f.kalemler) ? {
-        kalemler: f.kalemler.map(k => ({
-          urunKod: stripHtml(k.urunKod || ''),
-          urunAd: stripHtml(k.urunAd || ''),
-          adet: parseInt(k.adet, 10) || 0,
-          toplam: parseFloat(k.toplam) || 0,
-        })),
-      } : {}),
-    }));
-  }
-
-  // Sık alınanlar
-  if (Array.isArray(sikAlinanlar)) {
-    data.sikAlinanlar = sikAlinanlar.map(k => stripHtml(k)).slice(0, 50);
-  }
-
-  // Bildirimler — yenileri mevcut listeye append et, son 50 FIFO
-  const mevcutBildirimler = Array.isArray(mevcutData.bildirimler) ? mevcutData.bildirimler : [];
-  if (Array.isArray(yeniBildirimler) && yeniBildirimler.length > 0) {
-    const sanitized = yeniBildirimler.map(b => ({
-      id: stripHtml(b.id || ''),
-      tarih: b.tarih || new Date().toISOString(),
-      tip: stripHtml(b.tip || ''),
-      mesaj: stripHtml(b.mesaj || '').slice(0, 200),
-      ref: stripHtml(b.ref || ''),
-      okundu: false,
-    }));
-    data.bildirimler = [...mevcutBildirimler, ...sanitized].slice(-50);
-  } else {
-    // Bildirim eklenmese bile mevcut bildirimleri koru
-    data.bildirimler = mevcutBildirimler;
-  }
-
-  await gistWriteFile(SIP_GIST, `hesap_${sanitizedId}.json`, data);
-
-  return { ok: true };
-}
-
-// ── Admin: Tüm Siparişleri Oku ──────────────────────
-// Tüm müşterilerin siparişlerini getirir (Gelen Siparişler paneli için)
-async function adminSiparislerOku() {
-  // Sipariş Gist'teki tüm dosyaları oku
-  const gist = await gistRead(SIP_GIST);
-  const files = gist.files || {};
-  const tumu = [];
-
-  for (const [filename, file] of Object.entries(files)) {
-    if (!filename.startsWith('siparisler_')) continue;
-
-    let content = file.content;
-    // Truncated kontrolü
-    if (file.truncated && file.raw_url) {
-      const raw = await fetch(file.raw_url, { headers: gistHeaders });
-      if (raw.ok) content = await raw.text();
-    }
-
+  async function siparisGonder() {
+    if (sepet.length === 0 || busy) return;
+    setBusy(true);
     try {
-      const data = JSON.parse(content);
-      if (data?.siparisler?.length) {
-        tumu.push({
-          musteriId: data.musteriId,
-          musteriAd: data.musteriAd || filename.replace('siparisler_', '').replace('.json', ''),
-          siparisler: data.siparisler.map(s => ({
-            ...s,
-            durum: deriveDurum(s.kalemler || [], s.durumOverride),
-          })),
-          sonGuncelleme: data.sonGuncelleme,
-        });
-      }
-    } catch (e) { console.warn("Sipariş dosyası parse hatası:", e.message); }
+      const kalemler = sepet.map(item => {
+        const k = { urunKod: item.urunKod, urunAd: item.urunAd, adet: item.adet, not: item.not || '' };
+        if (item.yeniUrunData) { k.yeniUrun = true; k.parcaNo = item.yeniUrunData.parcaNo; k.supplier = item.yeniUrunData.supplier; k.kategori = item.yeniUrunData.kategori; }
+        return k;
+      });
+      await apiCall(API, pin, { islem: 'ekle', kalemler });
+      await refreshSiparisler();
+      setSepet([]);
+      showToast(`${kalemler.length} ${t.satirlar} ${t.gonderildi}`);
+      setMobileView('takip');
+    } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
   }
 
-  return { ok: true, musteriler: tumu };
-}
-
-// ── Admin: Katalog Stok Güncelle ─────────────────────
-// Tüm katalog yeniden yayınlamadan sadece stokVar alanlarını günceller.
-// afterTransaction hook'ları (alış/satış/iade) tarafından fire-and-forget çağrılır.
-// guncellemeler: [{ kod, stokVar, parcaNo?, ad?, supplier?, marka?, kategori? }]
-// Upsert: tam bilgi varsa yeni ürün eklenir, yoksa sadece stokVar güncellenir.
-async function adminKatalogStokGuncelle(body) {
-  const { guncellemeler } = body;
-  if (!Array.isArray(guncellemeler) || guncellemeler.length === 0) {
-    return { hata: 'guncellemeler dizisi boş veya geçersiz', status: 400 };
+  // ── Takip API işlemleri ──────────────────────────
+  async function siparisSil(siparisId) {
+    setBusy(true);
+    try { await apiCall(API, pin, { islem: 'sil', siparisId }); await refreshSiparisler(); } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
+  }
+  async function kalemGuncelle(siparisId, kalemId, adet, not) {
+    setBusy(true);
+    const body = { islem: 'guncelle', siparisId, kalemId };
+    if (adet !== undefined) body.adet = parseInt(adet);
+    if (not !== undefined) body.not = not;
+    try { await apiCall(API, pin, body); await refreshSiparisler(); } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
+  }
+  async function kalemSil(siparisId, kalemId) {
+    setBusy(true);
+    try { await apiCall(API, pin, { islem: 'kalem_sil', siparisId, kalemId }); await refreshSiparisler(); } catch (err) { showToast(t.hata + ': ' + err.message); }
+    setBusy(false);
   }
 
-  // Validasyon
-  for (const g of guncellemeler) {
-    if (!g.kod || typeof g.stokVar !== 'boolean') {
-      return { hata: `Geçersiz güncelleme: kod ve stokVar(boolean) zorunlu (${g.kod || '?'})`, status: 400 };
-    }
-    g.kod = stripHtml(g.kod);
-    if (g.parcaNo) g.parcaNo = stripHtml(g.parcaNo);
-    if (g.ad) g.ad = stripHtml(g.ad);
-    if (g.supplier) g.supplier = stripHtml(g.supplier);
-    if (g.marka) g.marka = stripHtml(g.marka);
-    if (g.kategori) g.kategori = stripHtml(g.kategori);
-  }
+  // ── Derived: filtre + gruplama ─────────────────
+  const kategoriler = useMemo(() => [...new Set(katalog.map(u => u.kategori).filter(Boolean))].sort(), [katalog]);
+  const markalar = useMemo(() => [...new Set(katalog.map(u => u.marka).filter(Boolean))].sort(), [katalog]);
+  const suppliers = useMemo(() => [...new Set(katalog.map(u => u.supplier).filter(Boolean))].sort(), [katalog]);
 
-  const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
-  if (!katalog || !Array.isArray(katalog.urunler)) {
-    return { hata: 'Katalog bulunamadı. Önce Katalog Yayınla yapın.', status: 404 };
-  }
+  const filtered = useMemo(() => {
+    let list = katalog;
+    if (search) { const s = search.toLowerCase(); list = list.filter(u => u.ad?.toLowerCase().includes(s) || u.kod?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s) || u.marka?.toLowerCase().includes(s)); }
+    if (katFilter) list = list.filter(u => u.kategori === katFilter);
+    if (markaFilter) list = list.filter(u => u.marka === markaFilter);
+    if (supplierFilter) list = list.filter(u => u.supplier === supplierFilter);
+    return list;
+  }, [katalog, search, katFilter, markaFilter, supplierFilter]);
 
-  // Mevcut ürünleri kod bazlı map'e al
-  const mevcutKodMap = new Set(katalog.urunler.map(u => u.kod));
-  let degisen = 0;
-  let eklenen = 0;
-
-  // Mevcut ürünlerin stokVar güncelle
-  katalog.urunler = katalog.urunler.map(u => {
-    const g = guncellemeler.find(x => x.kod === u.kod);
-    if (g && u.stokVar !== g.stokVar) {
-      degisen++;
-      return { ...u, stokVar: g.stokVar };
-    }
-    return u;
-  });
-
-  // Yeni ürünler: katalogda olmayan + tam bilgisi gelen
-  for (const g of guncellemeler) {
-    if (mevcutKodMap.has(g.kod)) continue; // zaten güncellendi
-    if (!g.ad) continue; // ad yoksa ekleme yapamayız (sadece stokVar güncellemesi istenmiş)
-    katalog.urunler.push({
-      kod: g.kod,
-      parcaNo: g.parcaNo || g.kod,
-      ad: g.ad,
-      supplier: g.supplier || '',
-      marka: g.marka || '',
-      kategori: g.kategori || '',
-      stokVar: g.stokVar,
+  // Accordion: Tür > Marka > Supplier
+  const accTree = useMemo(() => {
+    const tree = {};
+    filtered.forEach(u => {
+      const kat = u.kategori || 'Genel';
+      const mrk = u.marka || 'Genel';
+      const sup = u.supplier || 'Genel';
+      if (!tree[kat]) tree[kat] = {};
+      if (!tree[kat][mrk]) tree[kat][mrk] = {};
+      if (!tree[kat][mrk][sup]) tree[kat][mrk][sup] = [];
+      tree[kat][mrk][sup].push(u);
     });
-    eklenen++;
-  }
+    return tree;
+  }, [filtered]);
 
-  // Suppliers ve kategoriler setini güncelle (yeni ürünlerden gelen değerler)
-  if (eklenen > 0) {
-    const suppliersSet = new Set(katalog.suppliers || []);
-    const kategorilerSet = new Set(katalog.kategoriler || []);
-    for (const u of katalog.urunler) {
-      if (u.supplier) suppliersSet.add(u.supplier);
-      if (u.kategori) kategorilerSet.add(u.kategori);
-    }
-    katalog.suppliers = [...suppliersSet].sort();
-    katalog.kategoriler = [...kategorilerSet].sort();
-  }
+  const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi' || s.durum === 'hazirlaniyor').length;
 
-  if (degisen === 0 && eklenen === 0) {
-    return { ok: true, degisen: 0, eklenen: 0, mesaj: 'Katalog zaten güncel' };
-  }
+  return (
+    <div className="sip-3panel">
+      {/* ── SOL: Katalog Accordion ── */}
+      <div className="sip-panel sip-kat-panel">
+        <div className="sip-panel-title">
+          {t.katalog}
+          <span className="sip-panel-count">{filtered.length}</span>
+        </div>
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t.ara} className="sip-search" />
+        <ChipFilter label={t.kategori} items={kategoriler} value={katFilter} onChange={setKatFilter} />
+        <ChipFilter label={t.marka} items={markalar} value={markaFilter} onChange={setMarkaFilter} />
+        <ChipFilter label={t.supplier} items={suppliers} value={supplierFilter} onChange={setSupplierFilter} />
 
-  katalog.guncelleme = new Date().toISOString();
-  await gistWriteFile(KAT_GIST, 'katalog.json', katalog);
+        <div style={{ marginTop: 10 }}>
+          {Object.keys(accTree).length === 0 && <div className="sip-empty">{t.bos_katalog}</div>}
+          {Object.entries(accTree).sort((a, b) => a[0].localeCompare(b[0])).map(([kat, markalar2]) => (
+            <AccordionLevel key={kat} label={kat} count={Object.values(markalar2).reduce((s, sups) => s + Object.values(sups).reduce((s2, arr) => s2 + arr.length, 0), 0)}>
+              {Object.entries(markalar2).sort((a, b) => a[0].localeCompare(b[0])).map(([mrk, supMap]) => (
+                <AccordionLevel key={mrk} label={mrk} count={Object.values(supMap).reduce((s, arr) => s + arr.length, 0)} sub>
+                  {Object.entries(supMap).sort((a, b) => a[0].localeCompare(b[0])).map(([sup, items]) => (
+                    <div key={sup}>
+                      <div className="sip-acc-sub">{sup} <span className="sip-acc-sub-count">({items.length})</span></div>
+                      {items.map(u => (
+                        <div key={u.kod} className="sip-urun-card" onClick={() => sepeteEkle(u.kod, u.ad, 1)}>
+                          <span className="sip-urun-kod">
+                            {u.kod}
+                            {fiyatlar[u.kod]?.fiyat && <span className="sip-urun-fiyat">{fiyatlar[u.kod].fiyat} {fiyatlar[u.kod].doviz || 'USD'}</span>}
+                          </span>
+                          <span className={`sip-stok-dot ${u.stokVar ? 'sip-stok-var' : 'sip-stok-yok'}`} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </AccordionLevel>
+              ))}
+            </AccordionLevel>
+          ))}
+        </div>
+      </div>
 
-  return { ok: true, degisen, eklenen, toplam: guncellemeler.length };
+      {/* ── ORTA: Sipariş Formu ── */}
+      <div className="sip-panel">
+        {/* Mobil sub-tab toggle */}
+        <div className="sip-mobile-subtabs">
+          <button className={`sip-page-tab ${mobileView === 'form' ? 'active' : ''}`} onClick={() => setMobileView('form')}>
+            {t.siparis} {sepet.length > 0 && <span className="sip-badge sip-badge-bekle">{sepet.length}</span>}
+          </button>
+          <button className={`sip-page-tab ${mobileView === 'takip' ? 'active' : ''}`} onClick={() => setMobileView('takip')}>
+            {t.takip} {bekleyenSayisi > 0 && <span className="sip-badge sip-badge-bekle">{bekleyenSayisi}</span>}
+          </button>
+        </div>
+
+        {/* Mobil arama (mobilde sol panel yok) */}
+        <div className="sip-mobile-search">
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t.ara} className="sip-search" />
+        </div>
+
+        {/* Form view (desktop: her zaman; mobil: mobileView=form) */}
+        <div className={`sip-form-view ${mobileView !== 'form' ? 'sip-hide-mobile' : ''}`}>
+          <SepetPanel
+            t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
+            busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle} onNotGuncelle={sepetNotGuncelle}
+            onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar} showToast={showToast}
+          />
+        </div>
+
+        {/* Takip view (mobilde mobileView=takip) */}
+        <div className={`sip-takip-view ${mobileView !== 'takip' ? 'sip-hide-mobile' : ''} sip-hide-desktop`}>
+          <TakipPanel
+            t={t} siparisler={siparisler} fiyatlar={fiyatlar} busy={busy}
+            onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
+          />
+        </div>
+      </div>
+
+      {/* ── SAĞ: Takip (desktop only) ── */}
+      <div className="sip-panel">
+        <div className="sip-panel-title">
+          {t.takip}
+          {bekleyenSayisi > 0 && <span className="sip-panel-count">{bekleyenSayisi}</span>}
+        </div>
+        <TakipPanel
+          t={t} siparisler={siparisler} fiyatlar={fiyatlar} busy={busy}
+          onGrupSil={siparisSil} onKalemGuncelle={kalemGuncelle} onKalemSil={kalemSil}
+        />
+      </div>
+    </div>
+  );
 }
 
-// ── Admin: Sipariş Kalem Karşıla ────────────────────
-// Müşterinin siparişinde kalem bazlı karsilanan miktarını günceller
-async function adminSiparisKarsila(body) {
-  const { musteriId, siparisId, kalemId, karsilanan, not, fiyat, doviz } = body;
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
-  if (!kalemId)   return { hata: 'kalemId gerekli', status: 400 };
+// ══════════════════════════════════════════════════════
+// Sub-Components
+// ══════════════════════════════════════════════════════
 
-  const miktar = parseInt(karsilanan, 10);
-  if (!Number.isInteger(miktar) || miktar < 0) {
-    return { hata: 'Geçerli karşılanan miktarı giriniz', status: 400 };
-  }
-
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-  if (durum === 'iptal') return { hata: 'İptal edilmiş sipariş karşılanamaz', status: 400 };
-
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
-
-  if (miktar > kalem.adet) {
-    return { hata: `Karşılanan (${miktar}) sipariş adedinden (${kalem.adet}) fazla olamaz`, status: 400 };
-  }
-
-  // Karşılama kaydı
-  kalem.karsilanan = miktar;
-  // Kesinleşme: taslak→kesin geçişte hazirlanan temizlenir
-  if (kalem.hazirlanan) kalem.hazirlanan = 0;
-
-  sip.karsilamalar = sip.karsilamalar || [];
-  const karsilamaKayit = {
-    tarih: new Date().toISOString(),
-    kalemId,
-    miktar,
-    fiyat: parseFloat(fiyat) || null,     // birim satış fiyatı — B2 TakipTab + F1 hesap için
-    doviz: stripHtml(doviz || 'USD'),      // fiyatın dövizi
-    not: stripHtml(not || ''),
-  };
-  // M11: Muadil ürün bilgisi (orijinal ürün yerine farklı supplier gönderildiğinde)
-  if (body.muadilKod) karsilamaKayit.muadilKod = stripHtml(body.muadilKod);
-  if (body.muadilAd)  karsilamaKayit.muadilAd  = stripHtml(body.muadilAd);
-  sip.karsilamalar.push(karsilamaKayit);
-
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+// ── Chip Filter ─────────────────────────────────────
+function ChipFilter({ label, items, value, onChange }) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--sip-text-muted)', marginBottom: 4 }}>{label}</div>
+      <div className="sip-filter-row">
+        {items.map(item => (
+          <button key={item} className={`sip-chip ${value === item ? 'active' : ''}`}
+            onClick={() => onChange(value === item ? '' : item)}>
+            {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-// ── Admin: Sipariş Karşılama Düşür (İade / Geri Alma) ────────────
-// Bir kalemin karsilanan miktarını düşürür. İade veya yanlışlık düzeltme için.
-async function adminSiparisKarsilamaDusur(body) {
-  const { musteriId, siparisId, kalemId, dusurMiktar, sebep, tip } = body;
-  if (!musteriId)  return { hata: 'musteriId gerekli', status: 400 };
-  if (!siparisId)  return { hata: 'siparisId gerekli', status: 400 };
-  if (!kalemId)    return { hata: 'kalemId gerekli', status: 400 };
-
-  const miktar = parseInt(dusurMiktar, 10);
-  if (!Number.isInteger(miktar) || miktar <= 0) {
-    return { hata: 'Düşürülecek miktar 1 veya daha fazla olmalı', status: 400 };
-  }
-
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
-
-  if (miktar > (kalem.karsilanan || 0)) {
-    return { hata: `Düşürülecek miktar (${miktar}) mevcut karşılanandan (${kalem.karsilanan || 0}) fazla olamaz`, status: 400 };
-  }
-
-  // Karşılama düşür
-  kalem.karsilanan = (kalem.karsilanan || 0) - miktar;
-
-  // Log kaydı
-  sip.karsilamalar = sip.karsilamalar || [];
-  sip.karsilamalar.push({
-    tarih: new Date().toISOString(),
-    kalemId,
-    miktar: -miktar,
-    tip: tip || 'iade', // "iade" veya "duzeltme"
-    sebep: stripHtml(sebep || ''),
-  });
-
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+// ── Accordion Level ─────────────────────────────────
+function AccordionLevel({ label, count, sub, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="sip-acc">
+      <div className={`sip-acc-head ${open ? 'open' : ''} ${sub ? 'sip-acc-sub' : ''}`} onClick={() => setOpen(o => !o)}>
+        <span>{label} <span className="sip-acc-sub-count">({count})</span></span>
+        <span className="sip-acc-arrow">▶</span>
+      </div>
+      {open && <div className="sip-acc-body">{children}</div>}
+    </div>
+  );
 }
 
-// ── Admin: Sipariş İade Bildir ────────────────────────
-// Seçenek B: karsilanan DÜŞMEZ. Kalem altında iadeler[] array'ine entry ekler.
-// Gelecek genişleme için tasarlanmış:
-//   - hareketId: ana uygulamadaki iade hareketinin ID'si (fatura/hesap sistemi köprüsü)
-//   - tip: "iade" | "kayip" | "hasar" (ileride yeni tipler eklenebilir)
-//   - sonrakiAdimlar response alanı: caller'a ne yapması gerektiğini söyler
-//     (stok sync, hesap güncelleme vb. — şimdilik boş, hook'lar büyüdükçe dolar)
-async function adminSiparisIadeBildir(body) {
-  const { musteriId, siparisId, kalemId, miktar, sebep, tip, hareketId } = body;
-  if (!musteriId)  return { hata: 'musteriId gerekli', status: 400 };
-  if (!siparisId)  return { hata: 'siparisId gerekli', status: 400 };
-  if (!kalemId)    return { hata: 'kalemId gerekli', status: 400 };
+// ── Simetrik Arama Barı (tek component, üst+alt) ────
+function SearchAddBar({ katalog, placeholder, onAdd, onSelect }) {
+  const [input, setInput] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
-  const iadeMiktar = parseInt(miktar, 10);
-  if (!Number.isInteger(iadeMiktar) || iadeMiktar <= 0) {
-    return { hata: 'İade miktarı 1 veya daha fazla olmalı', status: 400 };
+  const results = useMemo(() => {
+    if (!input || input.length < 2) return [];
+    const s = input.toLowerCase();
+    return katalog.filter(u => u.kod?.toLowerCase().includes(s) || u.ad?.toLowerCase().includes(s) || u.parcaNo?.toLowerCase().includes(s)).slice(0, 8);
+  }, [input, katalog]);
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  function handleSelect(u) { onSelect(u); setInput(''); setOpen(false); }
+  function handleEnter() {
+    if (results.length > 0) handleSelect(results[0]);
+    else if (input.trim()) { onAdd(input); setInput(''); setOpen(false); }
   }
 
-  const geçerliTipler = ['iade', 'kayip', 'hasar'];
-  const iadeTip = geçerliTipler.includes(tip) ? tip : 'iade';
-
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
-
-  // Validasyon: iade ≤ karsilanan
-  const mevcutIade = (kalem.iadeler || []).reduce((s, i) => s + (i.miktar || 0), 0);
-  if (iadeMiktar > (kalem.karsilanan || 0) - mevcutIade) {
-    return {
-      hata: `İade miktarı (${iadeMiktar}), net karşılanan miktarı (${(kalem.karsilanan||0) - mevcutIade}) aşamaz`,
-      status: 400,
-    };
-  }
-
-  // kalem.iadeler[] array'ine ekle — karsilanan DEĞİŞMEZ (Seçenek B)
-  kalem.iadeler = kalem.iadeler || [];
-  kalem.iadeler.push({
-    id: `iade-${Date.now()}`,       // ileride referans için
-    tarih: new Date().toISOString(),
-    miktar: iadeMiktar,
-    sebep: stripHtml(sebep || ''),
-    tip: iadeTip,
-    hareketId: hareketId || null,   // ana uygulama iade hareketi ID'si — fatura köprüsü
-  });
-
-  // hasIade flag: TakipTab'da uyarı badge için hızlı erişim
-  sip.hasIade = sip.kalemler.some(k => (k.iadeler || []).length > 0);
-
-  await writeSiparisler(musteriId, sipData);
-
-  // sonrakiAdimlar: caller hook sistemi büyüdükçe buraya eklenecek
-  // Şu an boş — B1 (stok sync), F1 (hesap güncel) gibi adımlar ileride buradan yönetilecek
-  return {
-    ok: true,
-    siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) },
-    sonrakiAdimlar: [],
-  };
+  return (
+    <div className="sip-ac-wrap" ref={ref}>
+      <input type="text" value={input}
+        onChange={e => { setInput(e.target.value); setOpen(true); }}
+        onFocus={() => input.length >= 2 && setOpen(true)}
+        onKeyDown={e => { if (e.key === 'Enter') handleEnter(); }}
+        placeholder={placeholder} className="sip-search" />
+      {open && results.length > 0 && (
+        <div className="sip-ac-dropdown">
+          {results.map(u => (
+            <div key={u.kod} className="sip-ac-item" onClick={() => handleSelect(u)}>
+              <span>{u.kod} — {u.ad}</span>
+              <span className={`sip-stok-dot ${u.stokVar ? 'sip-stok-var' : 'sip-stok-yok'}`} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ── Admin: Sipariş Hazırlanıyor (Taslak fatura → sipariş bildirimi) ──
-// M2: Taslak fatura oluşturulduğunda, müşterinin sipariş kaleminde hazirlanan alanını set eder.
-// Müşteri portalında "Hazırlanıyor" durumu görünür (M4).
-// Geriden başlayarak eşleştirilir — aynı ürün birden fazla siparişte varsa en yeni önce.
-async function adminSiparisHazirlaniyor(body) {
-  const { musteriId, kalemler } = body;
-  // kalemler: [{ siparisId, kalemId, hazirlanan }]
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-  if (!Array.isArray(kalemler) || kalemler.length === 0) {
-    return { hata: 'kalemler dizisi boş veya geçersiz', status: 400 };
+// ── Sepet Panel (Orta) ──────────────────────────────
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onNotGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
+  const excelRef = useRef(null);
+  const [excelBusy, setExcelBusy] = useState(false);
+
+  async function sablonIndir() {
+    try {
+      const XLSX = await loadXLSX();
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([SABLON_SUTUNLAR, ...SABLON_ORNEK]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 8 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Sipariş');
+      XLSX.writeFile(wb, 'Bekilli_Siparis_Sablon.xlsx');
+    } catch (e) { console.warn('Şablon hatası:', e.message); }
   }
 
-  const sipData = await readSiparisler(musteriId);
-  let guncellenen = 0;
-
-  for (const k of kalemler) {
-    if (!k.siparisId || !k.kalemId) continue;
-    const miktar = parseInt(k.hazirlanan, 10);
-    if (!Number.isInteger(miktar) || miktar < 0) continue;
-
-    const sip = sipData.siparisler.find(s => s.id === k.siparisId);
-    if (!sip) continue;
-
-    const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-    if (durum === 'iptal' || durum === 'tamamlandi') continue;
-
-    const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
-    if (!kalem) continue;
-
-    // hazirlanan ≤ (adet - karsilanan) — zaten karşılanan kısmı hazırlamaya gerek yok
-    const maxHazir = kalem.adet - (kalem.karsilanan || 0);
-    kalem.hazirlanan = Math.min(miktar, maxHazir);
-    guncellenen++;
+  async function excelYukle(file) {
+    if (!file) return;
+    setExcelBusy(true);
+    try {
+      const XLSX = await loadXLSX();
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      if (!rows.length) { if (showToast) showToast('Dosya boş'); setExcelBusy(false); return; }
+      let n = 0;
+      rows.forEach(row => {
+        const kod = String(row['ÜRÜN KODU'] || row['URUN KODU'] || row['KOD'] || row['CODE'] || Object.values(row)[0] || '').trim().toUpperCase();
+        if (!kod) return;
+        const ad = String(row['ÜRÜN ADI (opsiyonel)'] || row['ÜRÜN ADI'] || row['AD'] || row['NAME'] || '').trim();
+        const adet = Math.max(1, parseInt(row['ADET'] || row['QTY'] || 1) || 1);
+        const not = String(row['NOT'] || row['NOTE'] || '').trim();
+        const found = katalog.find(u => u.kod?.toUpperCase() === kod || u.parcaNo?.toUpperCase() === kod);
+        if (found) onEkle(found.kod, found.ad, adet, not);
+        else { const p = kod.split('-'); onEkle(kod, ad || kod, adet, not, { parcaNo: p[0], supplier: p[1] || '', kategori: '' }); }
+        n++;
+      });
+      if (showToast) showToast(`${n} ürün Excel'den eklendi`);
+    } catch (e) { if (showToast) showToast('Excel okunamadı: ' + e.message); }
+    setExcelBusy(false);
+    if (excelRef.current) excelRef.current.value = '';
   }
 
-  if (guncellenen === 0) {
-    return { ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
+  function handleAddByKod(kod) {
+    if (!kod.trim()) return;
+    const found = katalog.find(u => u.kod?.toLowerCase() === kod.trim().toLowerCase() || u.parcaNo?.toLowerCase() === kod.trim().toLowerCase());
+    if (found) onEkle(found.kod, found.ad, 1);
+    else { const p = kod.trim().toUpperCase().split('-'); onEkle(p.join('-'), p.join('-'), 1, '', { parcaNo: p[0], supplier: p[1] || '', kategori: '' }); }
   }
 
-  await writeSiparisler(musteriId, sipData);
-  return { ok: true, guncellenen };
-}
-
-// ── Admin: Sipariş Hazırlama Düşür (Taslak iptal/silindiğinde) ───────
-// E4: Taslak fatura silinirse hazırlanan geri düşürülür.
-async function adminSiparisHazirlamaDusur(body) {
-  const { musteriId, kalemler } = body;
-  // kalemler: [{ siparisId, kalemId, dusurMiktar }]
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-  if (!Array.isArray(kalemler) || kalemler.length === 0) {
-    return { hata: 'kalemler dizisi boş veya geçersiz', status: 400 };
-  }
-
-  const sipData = await readSiparisler(musteriId);
-  let guncellenen = 0;
-
-  for (const k of kalemler) {
-    if (!k.siparisId || !k.kalemId) continue;
-    const miktar = parseInt(k.dusurMiktar, 10);
-    if (!Number.isInteger(miktar) || miktar <= 0) continue;
-
-    const sip = sipData.siparisler.find(s => s.id === k.siparisId);
-    if (!sip) continue;
-
-    const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
-    if (!kalem) continue;
-
-    kalem.hazirlanan = Math.max(0, (kalem.hazirlanan || 0) - miktar);
-    guncellenen++;
-  }
-
-  if (guncellenen === 0) {
-    return { ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
-  }
-
-  await writeSiparisler(musteriId, sipData);
-  return { ok: true, guncellenen };
-}
-
-// ── Admin: Sipariş İptal ────────────────────────────
-async function adminSiparisIptal(body) {
-  const { musteriId, siparisId, sebep } = body;
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
-
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-  if (durum === 'tamamlandi') return { hata: 'Tamamlanmış sipariş iptal edilemez', status: 400 };
-
-  sip.durumOverride = 'iptal';
-  sip.iptalSebep = stripHtml(sebep || '');
-  sip.iptalTarih = new Date().toISOString();
-
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: 'iptal' } };
-}
-
-// ── Admin: Sipariş Durum Override ────────────────────
-async function adminDurumOverride(body) {
-  const { musteriId, siparisId, durumOverride } = body;
-  if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
-  if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
-
-  // null = override kaldır (otomatik hesaplamaya dön)
-  if (durumOverride !== null && !['beklemede', 'iptal'].includes(durumOverride)) {
-    return { hata: 'durumOverride: null, "beklemede" veya "iptal" olmalı', status: 400 };
-  }
-
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
-
-  sip.durumOverride = durumOverride;
-
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
-}
-
-// ── Ana Handler ──────────────────────────────────────
-export default async function handler(req, res) {
-  const origin = req.headers.origin || '';
-  const cors = corsHeaders(origin);
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-
-  // Preflight
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
-  // ENV kontrolü
-  if (!TOKEN || !SIP_GIST || !KAT_GIST) {
-    return res.status(500).json({ hata: 'Sunucu yapılandırma hatası' });
-  }
-
-  // IP & Rate limit
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  const rl = rateCheck(ip);
-  if (rl === 'banned') return res.status(429).json({ hata: 'Çok fazla hatalı deneme. 15 dakika bekleyin.' });
-  if (rl === 'limited') return res.status(429).json({ hata: 'Çok fazla istek. Lütfen bekleyin.' });
-
-  // Health check (PIN'siz GET, parametresiz)
-  if (req.method === 'GET' && !req.headers['x-siparis-pin'] && !req.headers['x-admin-pin'] && !req.query.katalog) {
-    return res.status(200).json({
-      durum: 'aktif',
-      versiyon: '2.0.0',
-      zaman: new Date().toISOString(),
+  const sepetOzet = useMemo(() => {
+    let fiyatliToplam = 0, fiyatSorulacak = 0, topAdet = 0;
+    sepet.forEach(item => {
+      topAdet += item.adet;
+      const f = fiyatlar[item.urunKod];
+      if (f?.fiyat) fiyatliToplam += item.adet * f.fiyat; else fiyatSorulacak++;
     });
+    return { fiyatliToplam, fiyatSorulacak, topAdet, doviz: Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD' };
+  }, [sepet, fiyatlar]);
+
+  return (
+    <div>
+      <div className="sip-panel-title">
+        {t.siparis}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="sip-btn sip-btn-secondary" onClick={sablonIndir} style={{ fontSize: 9, padding: '4px 8px' }}>↓ Şablon</button>
+          <button className="sip-btn sip-btn-secondary" onClick={() => excelRef.current?.click()} disabled={excelBusy}
+            style={{ fontSize: 9, padding: '4px 8px' }}>{excelBusy ? '...' : '↑ Excel'}</button>
+        </div>
+      </div>
+      <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+        onChange={e => { if (e.target.files?.[0]) excelYukle(e.target.files[0]); }} />
+
+      {/* Üst arama barı */}
+      <SearchAddBar katalog={katalog} placeholder={t.ekle_placeholder} onAdd={handleAddByKod} onSelect={u => onEkle(u.kod, u.ad, 1)} />
+
+      {/* Sepet listesi */}
+      {sepet.length === 0 ? (
+        <div className="sip-empty">{t.sepet_bos}</div>
+      ) : (
+        <div className="sip-form-card">
+          <div className="sip-form-header">
+            <span>{sepet.length} {t.satirlar}</span>
+            <span className="sip-form-total">{sepetOzet.topAdet} {t.topAdet}</span>
+          </div>
+          {sepet.map(item => {
+            const f = fiyatlar[item.urunKod];
+            const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
+            return (
+              <div key={item.id} className="sip-kalem-row" style={{ flexWrap: 'wrap' }}>
+                <span className="sip-kalem-ad">
+                  {item.urunAd}
+                  {item.yeniUrunData && <span className="sip-badge sip-badge-hazir" style={{ marginLeft: 4, fontSize: 8 }}>NEW</span>}
+                </span>
+                <input type="number" min="1" max="99999" value={item.adet}
+                  onChange={e => onAdetGuncelle(item.id, e.target.value)} className="sip-kalem-adet" />
+                <span className="sip-kalem-tutar">
+                  {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '?'}
+                </span>
+                <button className="sip-kalem-sil" onClick={() => onSil(item.id)}>×</button>
+                <input
+                  type="text" placeholder={t.not_placeholder || 'Not ekle...'} maxLength={500}
+                  value={item.not || ''}
+                  onChange={e => onNotGuncelle(item.id, e.target.value)}
+                  style={{ width: '100%', marginTop: 4, fontSize: 11, padding: '4px 8px', borderRadius: 6,
+                    border: '1px solid var(--sip-border)', background: 'var(--sip-bg-secondary)',
+                    color: 'var(--sip-text)', outline: 'none' }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Alt arama barı (simetrik) */}
+      <SearchAddBar katalog={katalog} placeholder={t.ekle_placeholder} onAdd={handleAddByKod} onSelect={u => onEkle(u.kod, u.ad, 1)} />
+
+      {/* Toplam + Gönder */}
+      {sepet.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--sip-text-muted)', display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span>{t.fiyatli_toplam}</span>
+            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
+          </div>
+          {sepetOzet.fiyatSorulacak > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--sip-warning-text)', marginBottom: 4 }}>
+              {sepetOzet.fiyatSorulacak} {t.satirlar} — {t.fiyat_sorun_kalem}
+            </div>
+          )}
+          <div className="sip-btn-row">
+            <button className="sip-btn sip-btn-primary" onClick={onGonder} disabled={busy} style={{ flex: 1 }}>
+              {busy ? t.gonderiliyor : t.gonder}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sık alınanlar */}
+      {sikAlinanlar && sikAlinanlar.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div className="sip-chips-label">{t.sik_alinanlar || 'Sık Alınanlar'}</div>
+          <div className="sip-chips">
+            {sikAlinanlar.slice(0, 12).map(kod => (
+              <button key={kod} className="sip-chip" onClick={() => { const u = katalog.find(x => x.kod === kod); onEkle(kod, u?.ad || kod, 1); }}>{kod}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Takip Panel (Sağ) ───────────────────────────────
+function TakipPanel({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
+  const beklemede = siparisler.filter(s => s.durum === 'beklemede');
+  const hazirlaniyor = siparisler.filter(s => s.durum === 'hazirlaniyor');
+  const kismi = siparisler.filter(s => s.durum === 'kismi');
+  const tamamlandi = siparisler.filter(s => s.durum === 'tamamlandi');
+  const iptal = siparisler.filter(s => s.durum === 'iptal');
+
+  if (siparisler.length === 0) return <div className="sip-empty">{t.bos_siparis}</div>;
+
+  return (
+    <div>
+      {beklemede.length > 0 && <StatusGroup label={t.beklemede} status="bekle" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />}
+      {hazirlaniyor.length > 0 && <StatusGroup label={t.hazirlaniyor} status="hazir" items={hazirlaniyor} t={t} fiyatlar={fiyatlar} busy={busy} />}
+      {kismi.length > 0 && <StatusGroup label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />}
+      {tamamlandi.length > 0 && <StatusGroup label={t.tamamlandi} status="tamam" items={tamamlandi} t={t} fiyatlar={fiyatlar} busy={busy} collapsed />}
+      {iptal.length > 0 && <StatusGroup label={t.iptal_durum} status="iptal" items={iptal} t={t} fiyatlar={fiyatlar} busy={busy} collapsed />}
+    </div>
+  );
+}
+
+// ── Status Group ────────────────────────────────────
+function StatusGroup({ label, status, items, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil, collapsed: initialCollapsed }) {
+  const [collapsed, setCollapsed] = useState(!!initialCollapsed);
+
+  return (
+    <div className="sip-status-section">
+      <div className="sip-status-label" onClick={() => setCollapsed(c => !c)} style={{ cursor: 'pointer' }}>
+        <span className={`sip-badge sip-badge-${status}`}>{items.length}</span>
+        {label}
+        <span className="sip-acc-arrow" style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}>▶</span>
+      </div>
+      {!collapsed && items.map(grup => (
+        <SiparisCard key={grup.id} grup={grup} t={t} fiyatlar={fiyatlar} busy={busy}
+          onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />
+      ))}
+    </div>
+  );
+}
+
+// ── Sipariş Card ────────────────────────────────────
+function SiparisCard({ grup, t, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
+  const [open, setOpen] = useState(false);
+  const kalemler = grup.kalemler || [];
+  const tarih = new Date(grup.tarih).toLocaleDateString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const topKalem = kalemler.length;
+  const topAdet = kalemler.reduce((s, k) => s + k.adet, 0);
+  const topKarsilanan = kalemler.reduce((s, k) => s + (k.karsilanan || 0), 0);
+  const editable = grup.durum === 'beklemede' && topKarsilanan === 0;
+
+  // Progress
+  const progress = topAdet > 0 ? (topKarsilanan / topAdet) * 100 : 0;
+  const hazirProgress = topAdet > 0 ? (kalemler.reduce((s, k) => s + (k.hazirlanan || 0), 0) / topAdet) * 100 : 0;
+
+  return (
+    <div className="sip-sip-card" onClick={() => setOpen(o => !o)}>
+      <div className="sip-sip-card-header">
+        <span className="sip-sip-card-id">{topKalem} {t.satirlar}</span>
+        <span className="sip-sip-card-date">{tarih}</span>
+      </div>
+      <div className="sip-sip-card-sub">
+        {topKarsilanan > 0 ? `${topKarsilanan}/` : ''}{topAdet} {t.topAdet}
+      </div>
+      {(progress > 0 || hazirProgress > 0) && (
+        <div className="sip-progress">
+          <div className={`sip-progress-fill sip-pf-${grup.durum}`}
+            style={{ width: `${Math.max(progress, hazirProgress)}%` }} />
+        </div>
+      )}
+
+      {open && (
+        <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+          {kalemler.map(k => (
+            <KalemRow key={k.id} k={k} grupId={grup.id} t={t} fiyat={fiyatlar[k.urunKod]}
+              editable={editable} busy={busy} onGuncelle={onKalemGuncelle} onSil={onKalemSil}
+              karsilamalar={grup.karsilamalar} />
+          ))}
+          {editable && onGrupSil && (
+            <div className="sip-btn-row" style={{ marginTop: 8 }}>
+              <button className="sip-btn sip-btn-danger" onClick={() => onGrupSil(grup.id)} disabled={busy}>{t.sil}</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Kalem Row ───────────────────────────────────────
+function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, karsilamalar }) {
+  const [editMode, setEditMode] = useState(false);
+  const [yeniAdet, setYeniAdet] = useState(String(k.adet));
+  const [yeniNot, setYeniNot] = useState(k.not || '');
+
+  function handleSave() {
+    const a = parseInt(yeniAdet);
+    const adetDegisti = a && a !== k.adet && a >= 1;
+    const notDegisti = yeniNot !== (k.not || '');
+    if (adetDegisti || notDegisti) {
+      onGuncelle?.(grupId, k.id, adetDegisti ? a : undefined, notDegisti ? yeniNot : undefined);
+    }
+    setEditMode(false);
   }
 
-  // ── Katalog endpoint (PIN gerekmez) ───────────────
-  // Müşteri sayfası ürün listesini buradan çeker
-  // Rate limit geçerli (brute force koruması yok, sadece istek limiti)
-  if (req.method === 'GET' && req.query.katalog === '1') {
-    try {
-      const katalog = await gistReadFile(KAT_GIST, 'katalog.json', true);
-      return res.status(200).json({
-        urunler: katalog?.urunler || [],
-        suppliers: katalog?.suppliers || [],
-        kategoriler: katalog?.kategoriler || [],
-        guncelleme: katalog?.guncelleme || null,
-        apiVersion: katalog?.apiVersion || '1.0',
-      });
-    } catch (err) {
-      console.error('Katalog okuma hatası:', err.message);
-      return res.status(502).json({ hata: 'Katalog yüklenemedi' });
-    }
-  }
+  // B2: Karşılama fiyatı
+  const kalemKarsilamalar = (karsilamalar || []).filter(x => x.kalemId === k.id && x.miktar > 0);
+  const sonKarsilama = kalemKarsilamalar.length > 0 ? kalemKarsilamalar[kalemKarsilamalar.length - 1] : null;
+  const muadilKarsilama = kalemKarsilamalar.find(x => x.muadilKod);
 
-  // ══════════════════════════════════════════════════
-  // ══ ADMIN ENDPOINT'LERİ ══════════════════════════
-  // ══════════════════════════════════════════════════
-  // Admin PIN ayrı header: X-Admin-PIN
-  // CORS: Sadece bekilli-stok.vercel.app (+ localhost dev)
-  // Rate limit: 3 hatalı → 30 dk ban (müşteriden sıkı)
-  const adminPin = req.headers['x-admin-pin'];
-  if (adminPin) {
-    // Origin kontrolü — admin sadece ana uygulamadan
-    if (!isAdminOrigin(origin)) {
-      return res.status(403).json({ hata: 'Bu işlem bu kaynaktan yapılamaz' });
-    }
+  const fmtPara = (f, doviz) => {
+    const sym = doviz === 'USD' ? '$' : doviz === 'EUR' ? '€' : doviz === 'TRY' ? '₺' : (doviz + ' ');
+    return `${sym}${f.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
-    // Admin PIN doğrulama
-    let isAdmin;
-    try {
-      isAdmin = await authenticateAdmin(adminPin);
-    } catch (err) {
-      console.error('Admin auth hatası:', err.message);
-      return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası' });
-    }
-
-    if (!isAdmin) {
-      recordFailedAdminPin(ip);
-      return res.status(401).json({ hata: 'Geçersiz admin PIN' });
-    }
-
-    try {
-      // ── Admin GET: Veri oku ────────────────────────────
-      if (req.method === 'GET') {
-        const veri = req.query.veri;
-        if (veri === 'musteriler') {
-          const musteriler = await gistReadFile(SIP_GIST, 'musteriler.json');
-          return res.status(200).json({ ok: true, musteriler: musteriler || [] });
-        }
-        if (veri === 'fiyat' && req.query.musteri) {
-          // Belirli müşterinin portal fiyatlarını oku
-          const fData = await gistReadFile(SIP_GIST, `fiyat_${req.query.musteri}.json`);
-          return res.status(200).json({ ok: true, fiyatlar: fData || {} });
-        }
-        if (veri === 'hesap' && req.query.musteri) {
-          // Belirli müşterinin hesap/bakiye bilgisini oku
-          const hData = await gistReadFile(SIP_GIST, `hesap_${req.query.musteri}.json`);
-          return res.status(200).json({ ok: true, hesap: hData || {} });
-        }
-        if (veri === 'tum_fiyatlar') {
-          // Tüm portal müşterilerinin fiyatlarını tek seferde oku
-          const gist = await gistRead(SIP_GIST);
-          const files = gist.files || {};
-          const tumu = {};
-          for (const [filename, file] of Object.entries(files)) {
-            if (!filename.startsWith('fiyat_')) continue;
-            const mid = filename.replace('fiyat_', '').replace('.json', '');
-            let content = file.content;
-            if (file.truncated && file.raw_url) {
-              const raw = await fetch(file.raw_url, { headers: gistHeaders });
-              if (raw.ok) content = await raw.text();
-            }
-            try { tumu[mid] = JSON.parse(content); } catch (e) { console.warn("Fiyat dosyası parse hatası:", mid, e.message); }
-          }
-          return res.status(200).json({ ok: true, fiyatlar: tumu });
-        }
-        // Varsayılan: siparişleri oku
-        const sonuc = await adminSiparislerOku();
-        return res.status(200).json(sonuc);
-      }
-
-      // ── Admin POST: İşlem yürüt ────────────────────
-      if (req.method === 'POST') {
-        const body = req.body || {};
-        const islem = body.islem;
-
-        const adminIslemler = {
-          katalog_yayinla: adminKatalogYayinla,
-          katalog_stok_guncelle: adminKatalogStokGuncelle,
-          musteriler_guncelle: adminMusterilerGuncelle,
-          fiyat_guncelle: adminFiyatGuncelle,
-          hesap_guncelle: adminHesapGuncelle,
-          siparis_karsila: adminSiparisKarsila,
-          siparis_karsilama_dusur: adminSiparisKarsilamaDusur,
-          siparis_iade_bildir: adminSiparisIadeBildir,
-          siparis_hazirlaniyor: adminSiparisHazirlaniyor,
-          siparis_hazirlaniyor_dusur: adminSiparisHazirlamaDusur,
-          siparis_iptal: adminSiparisIptal,
-          durum_override: adminDurumOverride,
-          admin_pin_guncelle: adminPinGuncelle,
-        };
-
-        if (!adminIslemler[islem]) {
-          return res.status(400).json({
-            hata: `Geçersiz admin işlemi. Beklenen: ${Object.keys(adminIslemler).join(', ')}`,
-          });
-        }
-
-        const sonuc = await adminIslemler[islem](body);
-        if (sonuc.hata) return res.status(sonuc.status || 400).json({ hata: sonuc.hata });
-        return res.status(200).json(sonuc);
-      }
-
-      return res.status(405).json({ hata: 'Desteklenmeyen metod' });
-
-    } catch (err) {
-      console.error('Admin işlem hatası:', err.message);
-      // Retry: 1 kez, 2 sn sonra (GitHub 5xx için)
-      if (err.message.includes('5')) {
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-          if (req.method === 'GET') {
-            const sonuc = await adminSiparislerOku();
-            return res.status(200).json(sonuc);
-          }
-        } catch (e) { console.warn("Admin retry de başarısız:", e.message); }
-      }
-      return res.status(502).json({ hata: 'Admin işlemi sırasında hata oluştu. Tekrar deneyin.' });
-    }
-  }
-
-  // ══════════════════════════════════════════════════
-  // ══ MÜŞTERİ ENDPOINT'LERİ ═══════════════════════
-  // ══════════════════════════════════════════════════
-  const pin = req.headers['x-siparis-pin'];
-  if (!pin) return res.status(401).json({ hata: 'PIN gerekli' });
-
-  let musteri;
-  try {
-    musteri = await authenticatePin(pin);
-  } catch (err) {
-    console.error('Auth hatası:', err.message);
-    return res.status(502).json({ hata: 'Kimlik doğrulama servisi hatası' });
-  }
-
-  if (!musteri) {
-    recordFailedPin(ip);
-    return res.status(401).json({ hata: 'Geçersiz PIN' });
-  }
-
-  const { id: musteriId, ad: musteriAd } = musteri;
-
-  try {
-    // ── GET: Siparişleri + fiyatları + hesap bilgisi oku ──────────────
-    if (req.method === 'GET') {
-      const [sipData, fiyatlar, hesapData] = await Promise.all([
-        readSiparisler(musteriId),
-        readFiyatlar(musteriId),
-        gistReadFile(SIP_GIST, `hesap_${musteriId}.json`).catch(() => null),
-      ]);
-      return res.status(200).json({
-        musteriId,
-        musteriAd,
-        siparisler: (sipData.siparisler || []).map(s => ({
-          ...s,
-          durum: deriveDurum(s.kalemler || [], s.durumOverride),
-        })),
-        fiyatlar,
-        hesap: hesapData || null,
-      });
-    }
-
-    // ── POST: Sipariş işlemi ────────────────────────
-    if (req.method === 'POST') {
-      const body = req.body || {};
-      const islem = body.islem;
-
-      if (!['ekle', 'sil', 'guncelle', 'kalem_sil', 'bildirim_okundu'].includes(islem)) {
-        return res.status(400).json({ hata: 'Geçersiz işlem. Beklenen: ekle, sil, guncelle, kalem_sil, bildirim_okundu' });
-      }
-
-      // ── Bildirim okundu işaretle ────────────────────
-      if (islem === 'bildirim_okundu') {
-        const { bildirimIds } = body;
-        if (!Array.isArray(bildirimIds) || bildirimIds.length === 0) {
-          return res.status(400).json({ hata: 'bildirimIds dizisi gerekli' });
-        }
-        const hesapData = await gistReadFile(SIP_GIST, `hesap_${musteriId}.json`).catch(() => null);
-        if (!hesapData || !Array.isArray(hesapData.bildirimler)) {
-          return res.status(200).json({ ok: true }); // veri yok, sessizce başarılı
-        }
-        const idSet = new Set(bildirimIds.map(id => stripHtml(id)));
-        hesapData.bildirimler = hesapData.bildirimler.map(b =>
-          idSet.has(b.id) ? { ...b, okundu: true } : b
-        );
-        hesapData.guncelleme = new Date().toISOString();
-        await gistWriteFile(SIP_GIST, `hesap_${musteriId}.json`, hesapData);
-        return res.status(200).json({ ok: true });
-      }
-
-      // Sipariş dosyasını oku
-      const sipData = await readSiparisler(musteriId);
-      sipData.musteriId = musteriId;
-      sipData.musteriAd = musteriAd;
-
-      // İşlem yürüt
-      let sonuc;
-      if (islem === 'ekle')      sonuc = handleEkle(sipData, body);
-      if (islem === 'sil')       sonuc = handleSil(sipData, body);
-      if (islem === 'guncelle')  sonuc = handleGuncelle(sipData, body);
-      if (islem === 'kalem_sil') sonuc = handleKalemSil(sipData, body);
-
-      if (sonuc.hata) return res.status(sonuc.status || 400).json({ hata: sonuc.hata });
-
-      // Gist'e yaz
-      await writeSiparisler(musteriId, sipData);
-
-      return res.status(200).json({
-        ok: true,
-        islem,
-        siparis: sonuc.siparis || undefined,
-        toplamSiparis: sipData.siparisler.length,
-      });
-    }
-
-    return res.status(405).json({ hata: 'Desteklenmeyen metod' });
-
-  } catch (err) {
-    console.error('İşlem hatası:', err.message);
-    // Retry: 1 kez, 2 sn sonra (GitHub 5xx için)
-    if (err.message.includes('5')) {
-      await new Promise(r => setTimeout(r, 2000));
-      try {
-        // Basit retry — sadece okuma işlemi için
-        if (req.method === 'GET') {
-          const sipData = await readSiparisler(musteriId);
-          return res.status(200).json({ musteriId, musteriAd, siparisler: (sipData.siparisler || []).map(s => ({ ...s, durum: deriveDurum(s.kalemler || [], s.durumOverride) })) });
-        }
-      } catch (e) { console.warn("Müşteri retry de başarısız:", e.message); }
-    }
-    return res.status(502).json({ hata: 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.' });
-  }
+  return (
+    <div className="sip-kalem-row" style={{ flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="sip-kalem-ad">{k.urunAd}</div>
+        <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{k.urunKod}</div>
+        {/* Kalem notu */}
+        {k.not && (
+          <div style={{ fontSize: 10, color: 'var(--sip-accent)', fontStyle: 'italic', marginTop: 2 }}>
+            📝 {k.not}
+          </div>
+        )}
+        {/* M4: Hazırlanıyor */}
+        {(k.hazirlanan || 0) > 0 && k.karsilanan < k.adet && (
+          <span className="sip-badge sip-badge-hazir" style={{ fontSize: 8, marginTop: 2 }}>🔧 {k.hazirlanan} hazırlanıyor</span>
+        )}
+        {/* M11: Muadil — orijinal ürün parantez içinde */}
+        {muadilKarsilama && (
+          <span style={{ display: 'inline-block', fontSize: 9, fontWeight: 600, color: 'var(--sip-warning-text)', background: 'var(--sip-warning-bg)', padding: '1px 6px', borderRadius: 4, marginTop: 2 }}>
+            {muadilKarsilama.muadilKod}{muadilKarsilama.muadilAd ? ` — ${muadilKarsilama.muadilAd}` : ''} ile gönderildi
+            <span style={{ opacity: 0.7, marginLeft: 4 }}>(orijinal: {k.urunKod})</span>
+          </span>
+        )}
+        {/* D2: İade */}
+        {(k.iadeler || []).length > 0 && (() => {
+          const topIade = k.iadeler.reduce((s, i) => s + (i.miktar || 0), 0);
+          return (
+            <span style={{ display: 'inline-block', fontSize: 9, fontWeight: 600, color: 'var(--sip-danger-text)', background: 'var(--sip-danger-bg)', padding: '1px 6px', borderRadius: 4, marginTop: 2 }}>
+              {topIade} iade · Net: {(k.karsilanan || 0) - topIade}
+            </span>
+          );
+        })()}
+      </div>
+      <div style={{ textAlign: 'right', fontSize: 11 }}>
+        {k.karsilanan > 0 && <span style={{ color: 'var(--sip-accent)' }}>{k.karsilanan}/</span>}
+        <span style={{ fontWeight: 600 }}>{k.adet}</span>
+        {fiyat?.fiyat ? (
+          <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>
+            {fmtPara(fiyat.fiyat, fiyat.doviz || 'USD')} × {k.adet} = <strong>{fmtPara(fiyat.fiyat * k.adet, fiyat.doviz || 'USD')}</strong>
+          </div>
+        ) : sonKarsilama?.fiyat ? (
+          <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtPara(sonKarsilama.fiyat, sonKarsilama.doviz || 'USD')}/ad</div>
+        ) : (
+          <div style={{ fontSize: 10, color: 'var(--sip-text-faint)' }}>{t.fiyat_sorun_kalem}</div>
+        )}
+      </div>
+      {editable && onSil && !editMode && (
+        <div style={{ display: 'flex', gap: 4, width: '100%', marginTop: 4 }}>
+          <button className="sip-btn sip-btn-secondary" onClick={() => { setYeniAdet(String(k.adet)); setYeniNot(k.not || ''); setEditMode(true); }} disabled={busy} style={{ fontSize: 10 }}>{t.guncelle}</button>
+          <button className="sip-btn sip-btn-danger" onClick={() => onSil(grupId, k.id)} disabled={busy} style={{ fontSize: 10 }}>{t.sil}</button>
+        </div>
+      )}
+      {editMode && (
+        <div style={{ width: '100%', marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="number" min="1" max="99999" value={yeniAdet} onChange={e => setYeniAdet(e.target.value)}
+              className="sip-input" style={{ width: 60, textAlign: 'center', fontSize: 14 }} />
+            <button className="sip-btn sip-btn-primary" onClick={handleSave} disabled={busy} style={{ fontSize: 10 }}>{t.guncelle}</button>
+            <button className="sip-btn sip-btn-secondary" onClick={() => setEditMode(false)} style={{ fontSize: 10 }}>{t.iptal_btn}</button>
+          </div>
+          <input type="text" placeholder={t.not_placeholder || 'Not...'} maxLength={500}
+            value={yeniNot} onChange={e => setYeniNot(e.target.value)}
+            className="sip-input" style={{ width: '100%', marginTop: 4, fontSize: 11 }} />
+        </div>
+      )}
+    </div>
+  );
 }
