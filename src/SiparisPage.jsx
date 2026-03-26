@@ -595,6 +595,12 @@ function KalemRow({ k, grupId, t, fiyat, editable, busy, onGuncelle, onSil, kars
             <span style={{ opacity: 0.7, marginLeft: 4 }}>(orijinal: {k.urunKod})</span>
           </span>
         )}
+        {/* Admin karşılama notu */}
+        {kalemKarsilamalar.filter(x => x.not).map((x, i) => (
+          <div key={i} style={{ fontSize: 9, color: 'var(--sip-text-muted)', fontStyle: 'italic', marginTop: 2 }}>
+            💬 {x.not}
+          </div>
+        ))}
         {/* D2: İade */}
         {(k.iadeler || []).length > 0 && (() => {
           const topIade = k.iadeler.reduce((s, i) => s + (i.miktar || 0), 0);
