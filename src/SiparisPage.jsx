@@ -548,12 +548,11 @@ function TakipOzet({ t, siparisler }) {
 
   if (birlesik.length === 0) return null; // tüm kalemler karşılanmış
 
-  // Genel toplamlar
-  const topAdet = birlesik.reduce((s, u) => s + u.toplam, 0);
-  const topKarsilanan = birlesik.reduce((s, u) => s + u.karsilanan, 0);
+  // Genel toplamlar — bar sadece hazırlanan+bekleyen gösterir
   const topHazirlanan = birlesik.reduce((s, u) => s + u.hazirlanan, 0);
-  const genelYuzde = topAdet > 0 ? Math.round((topKarsilanan / topAdet) * 100) : 0;
-  const genelHazirYuzde = topAdet > 0 ? Math.round((topHazirlanan / topAdet) * 100) : 0;
+  const topKalan = birlesik.reduce((s, u) => s + u.kalan, 0);
+  const topAktif = topHazirlanan + topKalan;
+  const genelMorPct = topAktif > 0 ? Math.round((topHazirlanan / topAktif) * 100) : 0;
 
   // Durum pill'leri
   const durumlar = [
@@ -572,13 +571,13 @@ function TakipOzet({ t, siparisler }) {
         <span className="sip-takip-ozet-title">
           {aktif.length} {t.siparis.toLowerCase()} · {birlesik.length} {t.urun.toLowerCase()}
         </span>
-        <span className="sip-takip-ozet-pct">{topKarsilanan}/{topAdet} {t.topAdet}</span>
+        <span className="sip-takip-ozet-pct">{topAktif} {t.topAdet}</span>
       </div>
 
-      {/* Genel ilerleme barı (üç katmanlı) */}
-      <div className="sip-ozet-3bar">
-        <div className="sip-ozet-3bar-green" style={{ width: `${genelYuzde}%` }} />
-        <div className="sip-ozet-3bar-purple" style={{ left: `${genelYuzde}%`, width: `${genelHazirYuzde}%` }} />
+      {/* Genel ilerleme barı (mor=hazırlanan, turuncu=bekliyor, toplamı %100) */}
+      <div className="sip-ozet-2bar">
+        <div className="sip-ozet-2bar-purple" style={{ width: `${genelMorPct}%` }} />
+        <div className="sip-ozet-2bar-orange" style={{ left: `${genelMorPct}%`, width: `${100 - genelMorPct}%` }} />
       </div>
 
       {/* Durum pill'leri */}
@@ -595,24 +594,23 @@ function TakipOzet({ t, siparisler }) {
       {/* Birleşik ürün listesi (kompakt) */}
       <div className="sip-ozet-list">
         {birlesik.map(u => {
-          const kPct = u.toplam > 0 ? Math.round((u.karsilanan / u.toplam) * 100) : 0;
-          const hPct = u.toplam > 0 ? Math.round((u.hazirlanan / u.toplam) * 100) : 0;
+          const aktifU = u.hazirlanan + u.kalan;
+          const morPct = aktifU > 0 ? Math.round((u.hazirlanan / aktifU) * 100) : 0;
 
           return (
             <div key={u.kod} className="sip-ozet-item">
               <div className="sip-ozet-item-top">
                 <span className="sip-ozet-item-ad">{u.ad} <span className="sip-ozet-item-kod">{u.kod}</span></span>
-                <span className="sip-ozet-item-adet">{u.toplam} {t.topAdet}</span>
+                <span className="sip-ozet-item-adet">{aktifU} {t.topAdet}</span>
               </div>
               <div className="sip-ozet-item-row">
-                <div className="sip-ozet-3bar sip-ozet-3bar-sm">
-                  <div className="sip-ozet-3bar-green" style={{ width: `${kPct}%` }} />
-                  <div className="sip-ozet-3bar-purple" style={{ left: `${kPct}%`, width: `${hPct}%` }} />
+                <div className="sip-ozet-2bar sip-ozet-2bar-sm">
+                  <div className="sip-ozet-2bar-purple" style={{ width: `${morPct}%` }} />
+                  <div className="sip-ozet-2bar-orange" style={{ left: `${morPct}%`, width: `${100 - morPct}%` }} />
                 </div>
                 <div className="sip-ozet-item-stats">
-                  {u.kalan > 0 && <span className="sip-ozet-stat-warn">{u.kalan} bekliyor</span>}
                   {u.hazirlanan > 0 && <span className="sip-ozet-stat-purple">{u.hazirlanan} ⏳</span>}
-                  {u.karsilanan > 0 && <span className="sip-ozet-stat-green">{u.karsilanan} ✓</span>}
+                  {u.kalan > 0 && <span className="sip-ozet-stat-warn">{u.kalan} bekliyor</span>}
                 </div>
               </div>
             </div>
