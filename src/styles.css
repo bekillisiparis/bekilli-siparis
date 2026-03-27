@@ -348,6 +348,9 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 [data-theme="dark"] .sip-fatura { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-sip-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-logout-btn { border-color: rgba(255,255,255,0.1); color: var(--sip-text-muted); }
+[data-theme="dark"] .sip-mobile-katalog-item { border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-mobile-katalog-item:active { background: rgba(255,255,255,0.04); }
+[data-theme="dark"] .sip-mobile-sepet-bar { background: rgba(10,14,21,0.95); border-color: rgba(255,255,255,0.08); }
 
 /* ── Toast ─────────────────────────────────────────── */
 .sip-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 24px; background: var(--sip-text); color: var(--sip-bg-page); border-radius: 20px; font-size: 14px; font-weight: 500; z-index: 1000; animation: sip-toast-in 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
@@ -366,6 +369,27 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-form-view { }
 .sip-takip-view { }
 
+/* ── Mobile Katalog (inline, hidden on desktop) ───── */
+.sip-mobile-katalog { display: none; }
+.sip-mobile-sepet-bar { display: none; }
+
+.sip-mobile-katalog-header {
+  font-size: 14px; font-weight: 600; color: var(--sip-text); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sip-mobile-katalog-filters { margin-bottom: 8px; }
+.sip-mobile-katalog-list { display: flex; flex-direction: column; gap: 4px; }
+.sip-mobile-katalog-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border: 0.5px solid var(--sip-border-light); border-radius: 8px;
+  cursor: pointer; transition: background 0.15s;
+}
+.sip-mobile-katalog-item:active { background: var(--sip-bg-input); }
+.sip-mobile-katalog-kod { font-size: 13px; font-weight: 500; color: var(--sip-text); }
+.sip-mobile-katalog-ad { font-size: 11px; color: var(--sip-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sip-mobile-katalog-fiyat { font-size: 11px; color: var(--sip-accent); font-weight: 500; }
+.sip-mobile-katalog-plus { font-size: 18px; color: var(--sip-accent); font-weight: 600; line-height: 1; }
+
 /* ── Mobile — Hidden on desktop ────────────────────── */
 .sip-mobile-bar { display: none; }
 .sip-sheet-backdrop { display: none; }
@@ -377,6 +401,15 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-3panel { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
   .sip-kat-panel { display: none; }
   .sip-2panel { grid-template-columns: 1fr; }
+  .sip-mobile-katalog { display: block; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--sip-border-light); }
+  .sip-mobile-sepet-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 5;
+    padding: 8px 12px; margin: -14px -14px 10px; /* panel padding'i kompanse et */
+    background: var(--sip-accent-bg, var(--sip-bg));
+    border-bottom: 1px solid var(--sip-border-light);
+    font-size: 12px; font-weight: 500; color: var(--sip-accent);
+  }
 }
 
 /* ── Responsive — Mobile (<640px) ──────────────────── */
@@ -393,12 +426,13 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
     display: flex; gap: 0; border-bottom: 1px solid var(--sip-border-light); margin-bottom: 8px;
   }
   .sip-mobile-subtabs .sip-page-tab { flex: 1; text-align: center; }
-  .sip-mobile-search { display: block; margin-bottom: 8px; }
   .sip-hide-mobile { display: none !important; }
   .sip-hide-desktop { display: block; }
   .sip-pin-input { font-size: 20px; letter-spacing: 8px; }
   .sip-login-card { padding: 36px 24px; }
   .sip-search { font-size: 16px; padding: 10px 12px; }
+  /* Zoom fix: iOS 16px altında otomatik yakınlaştırıyor */
+  input, select, textarea { font-size: 16px !important; }
 
   .sip-mobile-bar {
     display: flex; align-items: center; justify-content: space-around;

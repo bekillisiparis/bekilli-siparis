@@ -189,17 +189,31 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
           </button>
         </div>
 
-        {/* Mobil arama (mobilde sol panel yok) */}
-        <div className="sip-mobile-search">
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t.ara} className="sip-search" />
-        </div>
+        {/* Mobil arama artık MobileKatalogList içinde */}
 
         {/* Form view (desktop: her zaman; mobil: mobileView=form) */}
         <div className={`sip-form-view ${mobileView !== 'form' ? 'sip-hide-mobile' : ''}`}>
+          {/* Mobil: sepet özet çubuğu (sticky) */}
+          {sepet.length > 0 && (
+            <div className="sip-mobile-sepet-bar">
+              <span>{sepet.length} {t.satirlar} · {sepet.reduce((s, i) => s + i.adet, 0)} {t.topAdet}</span>
+              <button className="sip-btn sip-btn-primary" onClick={siparisGonder} disabled={busy}
+                style={{ fontSize: 11, padding: '4px 12px' }}>{busy ? '...' : t.gonder + ' ↗'}</button>
+            </div>
+          )}
           <SepetPanel
             t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
             busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle} onNotGuncelle={sepetNotGuncelle}
             onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar} showToast={showToast}
+          />
+          {/* Mobil: inline katalog (≤1024px) */}
+          <MobileKatalogList
+            t={t} filtered={filtered} fiyatlar={fiyatlar} search={search} setSearch={setSearch}
+            kategoriler={kategoriler} markalar={markalar} suppliers={suppliers}
+            katFilter={katFilter} setKatFilter={setKatFilter}
+            markaFilter={markaFilter} setMarkaFilter={setMarkaFilter}
+            supplierFilter={supplierFilter} setSupplierFilter={setSupplierFilter}
+            onEkle={sepeteEkle}
           />
         </div>
 
@@ -455,6 +469,44 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Mobil Inline Katalog (≤1024px) ─────────────────
+// Desktop'ta gizli. Mobilde form view içinde sepet altında flat liste olarak görünür.
+function MobileKatalogList({ t, filtered, fiyatlar, search, setSearch, kategoriler, markalar, suppliers, katFilter, setKatFilter, markaFilter, setMarkaFilter, supplierFilter, setSupplierFilter, onEkle }) {
+  return (
+    <div className="sip-mobile-katalog">
+      <div className="sip-mobile-katalog-header">
+        {t.katalog}
+        <span className="sip-panel-count">{filtered.length}</span>
+      </div>
+      <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+        placeholder={t.ara} className="sip-search" style={{ marginBottom: 8 }} />
+      <div className="sip-mobile-katalog-filters">
+        <ChipFilter label={t.kategori} items={kategoriler} value={katFilter} onChange={setKatFilter} />
+        <ChipFilter label={t.marka} items={markalar} value={markaFilter} onChange={setMarkaFilter} />
+        <ChipFilter label={t.supplier} items={suppliers} value={supplierFilter} onChange={setSupplierFilter} />
+      </div>
+      <div className="sip-mobile-katalog-list">
+        {filtered.length === 0 && <div className="sip-empty">{t.bos_katalog}</div>}
+        {filtered.map(u => (
+          <div key={u.kod} className="sip-mobile-katalog-item" onClick={() => onEkle(u.kod, u.ad, 1)}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="sip-mobile-katalog-kod">{u.kod}</div>
+              <div className="sip-mobile-katalog-ad">{u.ad || u.parcaNo}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {fiyatlar[u.kod]?.fiyat && (
+                <span className="sip-mobile-katalog-fiyat">{fiyatlar[u.kod].fiyat} {fiyatlar[u.kod].doviz || '$'}</span>
+              )}
+              <span className={`sip-stok-dot ${u.stokVar ? 'sip-stok-var' : 'sip-stok-yok'}`} />
+              <span className="sip-mobile-katalog-plus">+</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
