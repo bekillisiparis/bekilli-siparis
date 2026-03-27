@@ -154,13 +154,53 @@ async function readFiyatlar(musteriId) {
 async function readSiparisler(musteriId) {
   const filename = `siparisler_${musteriId}.json`;
   const data = await gistReadFile(SIP_GIST, filename);
-  return data || { musteriId, siparisler: [] };
+  const result = data || { musteriId, siparisler: [] };
+  if (result._version === undefined) result._version = 0; // OL: eski veri uyumu
+  return result;
 }
 
 async function writeSiparisler(musteriId, data) {
   const filename = `siparisler_${musteriId}.json`;
+  data._version = (data._version || 0) + 1;
   data.sonGuncelleme = new Date().toISOString();
   return gistWriteFile(SIP_GIST, filename, data);
+}
+
+// ── Optimistic Locking: read → mutate → verify → write (3 retry) ────
+// mutationFn(sipData) → { ok, ... } veya { hata, status } döner.
+// Mutation senkron — sipData in-place değiştirilir.
+// _noWrite: true → veri değişmedi, write atla, sonucu direkt dön.
+// Retry: version çakışmasında sipData tekrar okunur, mutation tekrar uygulanır.
+async function withSiparisRetry(musteriId, mutationFn, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const sipData = await readSiparisler(musteriId);
+    const version = sipData._version;
+
+    const result = mutationFn(sipData);
+
+    // Validation hatası → write yok, direkt dön
+    if (result.hata) return result;
+    // _noWrite: veri değişmedi → write atla, temiz sonuç dön
+    if (result._noWrite) { delete result._noWrite; return result; }
+
+    // Yazma öncesi version doğrula
+    const current = await readSiparisler(musteriId);
+    if (current._version !== version) {
+      // Çakışma — retry
+      if (attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+      return {
+        hata: 'Eşzamanlı değişiklik algılandı. Lütfen sayfayı yenileyip tekrar deneyin.',
+        status: 409,
+      };
+    }
+
+    // Version OK → yaz
+    await writeSiparisler(musteriId, sipData);
+    return result;
+  }
 }
 
 // ── Grup Durum Hesaplama (Karma: otomatik + override) ─
@@ -534,8 +574,6 @@ async function adminHesapGuncelle(body) {
           adet: parseInt(k.adet, 10) || 0,
           birimFiyat: parseFloat(k.birimFiyat) || 0,
           toplam: parseFloat(k.toplam) || 0,
-          // adminNot: müşteriye yönelik kalem notu (K6.11 kapsamı dışında)
-          ...(k.not ? { not: stripHtml(k.not).slice(0, 300) } : {}),
           // maliyet, alisFiyati, kar, marj, aciklama KASITLI OLARAK YOK (K6.11)
         }));
       }
@@ -550,13 +588,6 @@ async function adminHesapGuncelle(body) {
       tarih: f.tarih || '',
       tutar: parseFloat(f.tutar) || 0,
       doviz: stripHtml(f.doviz || 'USD'),
-      ...(parseFloat(f.kdvOrani) > 0 ? { kdvOrani: parseFloat(f.kdvOrani), kdvTutar: parseFloat(f.kdvTutar) || 0 } : {}),
-      ...(Array.isArray(f.kalemler) ? { kalemler: f.kalemler.map(k => ({
-        urunKod: stripHtml(k.urunKod || ''), urunAd: stripHtml(k.urunAd || ''),
-        adet: parseInt(k.adet, 10) || 0, birimFiyat: parseFloat(k.birimFiyat) || 0,
-        toplam: parseFloat(k.toplam) || 0,
-        ...(k.not ? { not: stripHtml(k.not).slice(0, 300) } : {}),
-      })) } : {}),
     }));
   }
 
@@ -782,42 +813,38 @@ async function adminSiparisKarsila(body) {
     return { hata: 'Geçerli karşılanan miktarı giriniz', status: 400 };
   }
 
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+  return withSiparisRetry(musteriId, (sipData) => {
+    const sip = sipData.siparisler.find(s => s.id === siparisId);
+    if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
 
-  const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-  if (durum === 'iptal') return { hata: 'İptal edilmiş sipariş karşılanamaz', status: 400 };
+    const durum = deriveDurum(sip.kalemler, sip.durumOverride);
+    if (durum === 'iptal') return { hata: 'İptal edilmiş sipariş karşılanamaz', status: 400 };
 
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
+    const kalem = sip.kalemler.find(k => k.id === kalemId);
+    if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
 
-  if (miktar > kalem.adet) {
-    return { hata: `Karşılanan (${miktar}) sipariş adedinden (${kalem.adet}) fazla olamaz`, status: 400 };
-  }
+    if (miktar > kalem.adet) {
+      return { hata: `Karşılanan (${miktar}) sipariş adedinden (${kalem.adet}) fazla olamaz`, status: 400 };
+    }
 
-  // Karşılama kaydı
-  kalem.karsilanan = miktar;
-  // Kesinleşme: taslak→kesin geçişte hazirlanan temizlenir
-  if (kalem.hazirlanan) kalem.hazirlanan = 0;
+    kalem.karsilanan = miktar;
+    if (kalem.hazirlanan) kalem.hazirlanan = 0;
 
-  sip.karsilamalar = sip.karsilamalar || [];
-  const karsilamaKayit = {
-    tarih: new Date().toISOString(),
-    kalemId,
-    miktar,
-    fiyat: parseFloat(fiyat) || null,     // birim satış fiyatı — B2 TakipTab + F1 hesap için
-    doviz: stripHtml(doviz || 'USD'),      // fiyatın dövizi
-    not: stripHtml(not || ''),
-  };
-  // M11: Muadil ürün bilgisi (orijinal ürün yerine farklı supplier gönderildiğinde)
-  if (body.muadilKod) karsilamaKayit.muadilKod = stripHtml(body.muadilKod);
-  if (body.muadilAd)  karsilamaKayit.muadilAd  = stripHtml(body.muadilAd);
-  sip.karsilamalar.push(karsilamaKayit);
+    sip.karsilamalar = sip.karsilamalar || [];
+    const karsilamaKayit = {
+      tarih: new Date().toISOString(),
+      kalemId,
+      miktar,
+      fiyat: parseFloat(fiyat) || null,
+      doviz: stripHtml(doviz || 'USD'),
+      not: stripHtml(not || ''),
+    };
+    if (body.muadilKod) karsilamaKayit.muadilKod = stripHtml(body.muadilKod);
+    if (body.muadilAd)  karsilamaKayit.muadilAd  = stripHtml(body.muadilAd);
+    sip.karsilamalar.push(karsilamaKayit);
 
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+    return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+  });
 }
 
 // ── Admin: Sipariş Karşılama Düşür (İade / Geri Alma) ────────────
@@ -833,33 +860,30 @@ async function adminSiparisKarsilamaDusur(body) {
     return { hata: 'Düşürülecek miktar 1 veya daha fazla olmalı', status: 400 };
   }
 
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+  return withSiparisRetry(musteriId, (sipData) => {
+    const sip = sipData.siparisler.find(s => s.id === siparisId);
+    if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
 
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
+    const kalem = sip.kalemler.find(k => k.id === kalemId);
+    if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
 
-  if (miktar > (kalem.karsilanan || 0)) {
-    return { hata: `Düşürülecek miktar (${miktar}) mevcut karşılanandan (${kalem.karsilanan || 0}) fazla olamaz`, status: 400 };
-  }
+    if (miktar > (kalem.karsilanan || 0)) {
+      return { hata: `Düşürülecek miktar (${miktar}) mevcut karşılanandan (${kalem.karsilanan || 0}) fazla olamaz`, status: 400 };
+    }
 
-  // Karşılama düşür
-  kalem.karsilanan = (kalem.karsilanan || 0) - miktar;
+    kalem.karsilanan = (kalem.karsilanan || 0) - miktar;
 
-  // Log kaydı
-  sip.karsilamalar = sip.karsilamalar || [];
-  sip.karsilamalar.push({
-    tarih: new Date().toISOString(),
-    kalemId,
-    miktar: -miktar,
-    tip: tip || 'iade', // "iade" veya "duzeltme"
-    sebep: stripHtml(sebep || ''),
+    sip.karsilamalar = sip.karsilamalar || [];
+    sip.karsilamalar.push({
+      tarih: new Date().toISOString(),
+      kalemId,
+      miktar: -miktar,
+      tip: tip || 'iade',
+      sebep: stripHtml(sebep || ''),
+    });
+
+    return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
   });
-
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
 }
 
 // ── Admin: Sipariş İade Bildir ────────────────────────
@@ -883,45 +907,39 @@ async function adminSiparisIadeBildir(body) {
   const geçerliTipler = ['iade', 'kayip', 'hasar'];
   const iadeTip = geçerliTipler.includes(tip) ? tip : 'iade';
 
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+  return withSiparisRetry(musteriId, (sipData) => {
+    const sip = sipData.siparisler.find(s => s.id === siparisId);
+    if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
 
-  const kalem = sip.kalemler.find(k => k.id === kalemId);
-  if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
+    const kalem = sip.kalemler.find(k => k.id === kalemId);
+    if (!kalem) return { hata: 'Kalem bulunamadı', status: 404 };
 
-  // Validasyon: iade ≤ karsilanan
-  const mevcutIade = (kalem.iadeler || []).reduce((s, i) => s + (i.miktar || 0), 0);
-  if (iadeMiktar > (kalem.karsilanan || 0) - mevcutIade) {
+    const mevcutIade = (kalem.iadeler || []).reduce((s, i) => s + (i.miktar || 0), 0);
+    if (iadeMiktar > (kalem.karsilanan || 0) - mevcutIade) {
+      return {
+        hata: `İade miktarı (${iadeMiktar}), net karşılanan miktarı (${(kalem.karsilanan||0) - mevcutIade}) aşamaz`,
+        status: 400,
+      };
+    }
+
+    kalem.iadeler = kalem.iadeler || [];
+    kalem.iadeler.push({
+      id: `iade-${Date.now()}`,
+      tarih: new Date().toISOString(),
+      miktar: iadeMiktar,
+      sebep: stripHtml(sebep || ''),
+      tip: iadeTip,
+      hareketId: hareketId || null,
+    });
+
+    sip.hasIade = sip.kalemler.some(k => (k.iadeler || []).length > 0);
+
     return {
-      hata: `İade miktarı (${iadeMiktar}), net karşılanan miktarı (${(kalem.karsilanan||0) - mevcutIade}) aşamaz`,
-      status: 400,
+      ok: true,
+      siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) },
+      sonrakiAdimlar: [],
     };
-  }
-
-  // kalem.iadeler[] array'ine ekle — karsilanan DEĞİŞMEZ (Seçenek B)
-  kalem.iadeler = kalem.iadeler || [];
-  kalem.iadeler.push({
-    id: `iade-${Date.now()}`,       // ileride referans için
-    tarih: new Date().toISOString(),
-    miktar: iadeMiktar,
-    sebep: stripHtml(sebep || ''),
-    tip: iadeTip,
-    hareketId: hareketId || null,   // ana uygulama iade hareketi ID'si — fatura köprüsü
   });
-
-  // hasIade flag: TakipTab'da uyarı badge için hızlı erişim
-  sip.hasIade = sip.kalemler.some(k => (k.iadeler || []).length > 0);
-
-  await writeSiparisler(musteriId, sipData);
-
-  // sonrakiAdimlar: caller hook sistemi büyüdükçe buraya eklenecek
-  // Şu an boş — B1 (stok sync), F1 (hesap güncel) gibi adımlar ileride buradan yönetilecek
-  return {
-    ok: true,
-    siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) },
-    sonrakiAdimlar: [],
-  };
 }
 
 // ── Admin: Sipariş Hazırlanıyor (Taslak fatura → sipariş bildirimi) ──
@@ -930,77 +948,74 @@ async function adminSiparisIadeBildir(body) {
 // Geriden başlayarak eşleştirilir — aynı ürün birden fazla siparişte varsa en yeni önce.
 async function adminSiparisHazirlaniyor(body) {
   const { musteriId, kalemler } = body;
-  // kalemler: [{ siparisId, kalemId, hazirlanan }]
   if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
   if (!Array.isArray(kalemler) || kalemler.length === 0) {
     return { hata: 'kalemler dizisi boş veya geçersiz', status: 400 };
   }
 
-  const sipData = await readSiparisler(musteriId);
-  let guncellenen = 0;
+  return withSiparisRetry(musteriId, (sipData) => {
+    let guncellenen = 0;
 
-  for (const k of kalemler) {
-    if (!k.siparisId || !k.kalemId) continue;
-    const miktar = parseInt(k.hazirlanan, 10);
-    if (!Number.isInteger(miktar) || miktar < 0) continue;
+    for (const k of kalemler) {
+      if (!k.siparisId || !k.kalemId) continue;
+      const miktar = parseInt(k.hazirlanan, 10);
+      if (!Number.isInteger(miktar) || miktar < 0) continue;
 
-    const sip = sipData.siparisler.find(s => s.id === k.siparisId);
-    if (!sip) continue;
+      const sip = sipData.siparisler.find(s => s.id === k.siparisId);
+      if (!sip) continue;
 
-    const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-    if (durum === 'iptal' || durum === 'tamamlandi') continue;
+      const durum = deriveDurum(sip.kalemler, sip.durumOverride);
+      if (durum === 'iptal' || durum === 'tamamlandi') continue;
 
-    const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
-    if (!kalem) continue;
+      const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
+      if (!kalem) continue;
 
-    // hazirlanan ≤ (adet - karsilanan) — zaten karşılanan kısmı hazırlamaya gerek yok
-    const maxHazir = kalem.adet - (kalem.karsilanan || 0);
-    kalem.hazirlanan = Math.min(miktar, maxHazir);
-    guncellenen++;
-  }
+      const maxHazir = kalem.adet - (kalem.karsilanan || 0);
+      kalem.hazirlanan = Math.min(miktar, maxHazir);
+      guncellenen++;
+    }
 
-  if (guncellenen === 0) {
-    return { ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
-  }
+    if (guncellenen === 0) {
+      return { _noWrite: true, ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
+    }
 
-  await writeSiparisler(musteriId, sipData);
-  return { ok: true, guncellenen };
+    return { ok: true, guncellenen };
+  });
 }
 
 // ── Admin: Sipariş Hazırlama Düşür (Taslak iptal/silindiğinde) ───────
 // E4: Taslak fatura silinirse hazırlanan geri düşürülür.
 async function adminSiparisHazirlamaDusur(body) {
   const { musteriId, kalemler } = body;
-  // kalemler: [{ siparisId, kalemId, dusurMiktar }]
   if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
   if (!Array.isArray(kalemler) || kalemler.length === 0) {
     return { hata: 'kalemler dizisi boş veya geçersiz', status: 400 };
   }
 
-  const sipData = await readSiparisler(musteriId);
-  let guncellenen = 0;
+  return withSiparisRetry(musteriId, (sipData) => {
+    let guncellenen = 0;
 
-  for (const k of kalemler) {
-    if (!k.siparisId || !k.kalemId) continue;
-    const miktar = parseInt(k.dusurMiktar, 10);
-    if (!Number.isInteger(miktar) || miktar <= 0) continue;
+    for (const k of kalemler) {
+      if (!k.siparisId || !k.kalemId) continue;
+      const miktar = parseInt(k.dusurMiktar, 10);
+      if (!Number.isInteger(miktar) || miktar <= 0) continue;
 
-    const sip = sipData.siparisler.find(s => s.id === k.siparisId);
-    if (!sip) continue;
+      const sip = sipData.siparisler.find(s => s.id === k.siparisId);
+      if (!sip) continue;
 
-    const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
-    if (!kalem) continue;
+      const kalem = sip.kalemler.find(kk => kk.id === k.kalemId);
+      if (!kalem) continue;
 
-    kalem.hazirlanan = Math.max(0, (kalem.hazirlanan || 0) - miktar);
-    guncellenen++;
-  }
+      kalem.hazirlanan = Math.max(0, (kalem.hazirlanan || 0) - miktar);
+      guncellenen++;
+    }
 
-  if (guncellenen === 0) {
-    return { ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
-  }
+    if (guncellenen === 0) {
+      return { _noWrite: true, ok: true, guncellenen: 0, mesaj: 'Güncellenecek kalem yok' };
+    }
 
-  await writeSiparisler(musteriId, sipData);
-  return { ok: true, guncellenen };
+    return { ok: true, guncellenen };
+  });
 }
 
 // ── Admin: Sipariş İptal ────────────────────────────
@@ -1009,20 +1024,19 @@ async function adminSiparisIptal(body) {
   if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
   if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
 
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+  return withSiparisRetry(musteriId, (sipData) => {
+    const sip = sipData.siparisler.find(s => s.id === siparisId);
+    if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
 
-  const durum = deriveDurum(sip.kalemler, sip.durumOverride);
-  if (durum === 'tamamlandi') return { hata: 'Tamamlanmış sipariş iptal edilemez', status: 400 };
+    const durum = deriveDurum(sip.kalemler, sip.durumOverride);
+    if (durum === 'tamamlandi') return { hata: 'Tamamlanmış sipariş iptal edilemez', status: 400 };
 
-  sip.durumOverride = 'iptal';
-  sip.iptalSebep = stripHtml(sebep || '');
-  sip.iptalTarih = new Date().toISOString();
+    sip.durumOverride = 'iptal';
+    sip.iptalSebep = stripHtml(sebep || '');
+    sip.iptalTarih = new Date().toISOString();
 
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: 'iptal' } };
+    return { ok: true, siparis: { ...sip, durum: 'iptal' } };
+  });
 }
 
 // ── Admin: Sipariş Durum Override ────────────────────
@@ -1031,20 +1045,18 @@ async function adminDurumOverride(body) {
   if (!musteriId) return { hata: 'musteriId gerekli', status: 400 };
   if (!siparisId) return { hata: 'siparisId gerekli', status: 400 };
 
-  // null = override kaldır (otomatik hesaplamaya dön)
   if (durumOverride !== null && !['beklemede', 'iptal'].includes(durumOverride)) {
     return { hata: 'durumOverride: null, "beklemede" veya "iptal" olmalı', status: 400 };
   }
 
-  const sipData = await readSiparisler(musteriId);
-  const sip = sipData.siparisler.find(s => s.id === siparisId);
-  if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
+  return withSiparisRetry(musteriId, (sipData) => {
+    const sip = sipData.siparisler.find(s => s.id === siparisId);
+    if (!sip) return { hata: 'Sipariş bulunamadı', status: 404 };
 
-  sip.durumOverride = durumOverride;
+    sip.durumOverride = durumOverride;
 
-  await writeSiparisler(musteriId, sipData);
-
-  return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+    return { ok: true, siparis: { ...sip, durum: deriveDurum(sip.kalemler, sip.durumOverride) } };
+  });
 }
 
 // ── Ana Handler ──────────────────────────────────────
@@ -1281,29 +1293,30 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
-      // Sipariş dosyasını oku
-      const sipData = await readSiparisler(musteriId);
-      sipData.musteriId = musteriId;
-      sipData.musteriAd = musteriAd;
+      // Sipariş dosyasını oku → mutate → verify → yaz (OL)
+      const sonuc = await withSiparisRetry(musteriId, (sipData) => {
+        sipData.musteriId = musteriId;
+        sipData.musteriAd = musteriAd;
 
-      // İşlem yürüt
-      let sonuc;
-      if (islem === 'ekle')      sonuc = handleEkle(sipData, body);
-      if (islem === 'sil')       sonuc = handleSil(sipData, body);
-      if (islem === 'guncelle')  sonuc = handleGuncelle(sipData, body);
-      if (islem === 'kalem_sil') sonuc = handleKalemSil(sipData, body);
+        let r;
+        if (islem === 'ekle')      r = handleEkle(sipData, body);
+        if (islem === 'sil')       r = handleSil(sipData, body);
+        if (islem === 'guncelle')  r = handleGuncelle(sipData, body);
+        if (islem === 'kalem_sil') r = handleKalemSil(sipData, body);
+
+        if (r.hata) return r;
+
+        return {
+          ok: true,
+          islem,
+          siparis: r.siparis || undefined,
+          toplamSiparis: sipData.siparisler.length,
+        };
+      });
 
       if (sonuc.hata) return res.status(sonuc.status || 400).json({ hata: sonuc.hata });
 
-      // Gist'e yaz
-      await writeSiparisler(musteriId, sipData);
-
-      return res.status(200).json({
-        ok: true,
-        islem,
-        siparis: sonuc.siparis || undefined,
-        toplamSiparis: sipData.siparisler.length,
-      });
+      return res.status(200).json(sonuc);
     }
 
     return res.status(405).json({ hata: 'Desteklenmeyen metod' });
