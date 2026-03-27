@@ -191,17 +191,19 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-ozet-3bar-purple { position: absolute; top: 0; height: 100%; background: var(--sip-purple); transition: left .3s, width .3s; }
 
 /* Birleşik ürün listesi */
-.sip-ozet-list { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-.sip-ozet-item { padding: 6px 8px; background: var(--sip-bg); border: 1px solid var(--sip-border-faint); border-radius: 6px; }
-.sip-ozet-item-top { display: flex; justify-content: space-between; align-items: center; }
-.sip-ozet-item-ad { font-size: 11px; font-weight: 600; color: var(--sip-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
+.sip-ozet-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.sip-ozet-item { padding: 5px 8px; background: var(--sip-bg); border: 1px solid var(--sip-border-faint); border-radius: 6px; }
+.sip-ozet-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.sip-ozet-item-ad { font-size: 11px; font-weight: 600; color: var(--sip-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%; }
+.sip-ozet-item-kod { font-size: 9px; font-weight: 400; color: var(--sip-text-faint); margin-left: 4px; }
 .sip-ozet-item-adet { font-size: 10px; font-weight: 600; color: var(--sip-text-muted); flex-shrink: 0; }
-.sip-ozet-item-kod { font-size: 9px; color: var(--sip-text-faint); margin-bottom: 4px; }
-.sip-ozet-item .sip-ozet-3bar { height: 3px; margin-bottom: 3px; }
-.sip-ozet-item-stats { display: flex; gap: 8px; font-size: 9px; }
+.sip-ozet-item-row { display: flex; align-items: center; gap: 8px; }
+.sip-ozet-item-row .sip-ozet-3bar { flex: 1; }
+.sip-ozet-3bar-sm { height: 3px; }
+.sip-ozet-item-stats { display: flex; gap: 6px; font-size: 9px; flex-shrink: 0; }
+.sip-ozet-stat-warn { color: var(--sip-warning-text); font-weight: 600; }
 .sip-ozet-stat-green { color: var(--sip-success-text); font-weight: 600; }
 .sip-ozet-stat-purple { color: var(--sip-purple-text); font-weight: 600; }
-.sip-ozet-stat-gray { color: var(--sip-text-faint); }
 
 /* ── Takip Panel (sağ) ─────────────────────────────── */
 .sip-status-section { margin-bottom: 10px; }
