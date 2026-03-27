@@ -524,34 +524,65 @@ function MobileKatalogList({ t, filtered, fiyatlar, search, setSearch, kategoril
   );
 }
 
-// ── Takip Özet (üst kısım) ───────────────────────────
+// ── Takip Özet: Birleşik ürün listesi (aktif siparişler) ──────────
 function TakipOzet({ t, siparisler }) {
-  const aktif = siparisler.filter(s => s.durum !== 'iptal');
-  const topKalem = aktif.reduce((s, g) => s + (g.kalemler?.length || 0), 0);
-  const topAdet = aktif.reduce((s, g) => s + (g.kalemler || []).reduce((a, k) => a + k.adet, 0), 0);
-  const topKarsilanan = aktif.reduce((s, g) => s + (g.kalemler || []).reduce((a, k) => a + (k.karsilanan || 0), 0), 0);
-  const yuzde = topAdet > 0 ? Math.round((topKarsilanan / topAdet) * 100) : 0;
+  // Sadece aktif siparişler (tamamlandı + iptal hariç)
+  const aktif = siparisler.filter(s => s.durum !== 'iptal' && s.durum !== 'tamamlandi');
+  if (aktif.length === 0) return null;
 
+  // Ürün bazlı birleştirme
+  const urunMap = {};
+  for (const sip of aktif) {
+    for (const k of (sip.kalemler || [])) {
+      const kod = k.urunKod || 'bilinmeyen';
+      if (!urunMap[kod]) urunMap[kod] = { kod, ad: k.urunAd || kod, toplam: 0, karsilanan: 0, hazirlanan: 0 };
+      urunMap[kod].toplam += k.adet || 0;
+      urunMap[kod].karsilanan += k.karsilanan || 0;
+      urunMap[kod].hazirlanan += k.hazirlanan || 0;
+    }
+  }
+  const birlesik = Object.values(urunMap)
+    .sort((a, b) => {
+      // En az ilerleyen üstte
+      const pctA = a.toplam > 0 ? a.karsilanan / a.toplam : 0;
+      const pctB = b.toplam > 0 ? b.karsilanan / b.toplam : 0;
+      return pctA - pctB;
+    });
+
+  // Genel toplamlar
+  const topAdet = birlesik.reduce((s, u) => s + u.toplam, 0);
+  const topKarsilanan = birlesik.reduce((s, u) => s + u.karsilanan, 0);
+  const topHazirlanan = birlesik.reduce((s, u) => s + u.hazirlanan, 0);
+  const genelYuzde = topAdet > 0 ? Math.round((topKarsilanan / topAdet) * 100) : 0;
+  const genelHazirYuzde = topAdet > 0 ? Math.round((topHazirlanan / topAdet) * 100) : 0;
+
+  // Durum pill'leri
   const durumlar = [
     { key: 'beklemede',    label: t.beklemede,    badge: 'bekle' },
     { key: 'hazirlaniyor', label: t.hazirlaniyor, badge: 'hazir' },
     { key: 'kismi',        label: t.kismi,        badge: 'kismi' },
-    { key: 'tamamlandi',   label: t.tamamlandi,   badge: 'tamam' },
   ];
   const durumSayilari = durumlar
-    .map(d => ({ ...d, count: siparisler.filter(s => s.durum === d.key).length }))
+    .map(d => ({ ...d, count: aktif.filter(s => s.durum === d.key).length }))
     .filter(d => d.count > 0);
 
   return (
     <div className="sip-takip-ozet">
+      {/* Başlık */}
       <div className="sip-takip-ozet-head">
-        <span className="sip-takip-ozet-title">{aktif.length} {t.siparis.toLowerCase()} · {topKalem} {t.satirlar}</span>
+        <span className="sip-takip-ozet-title">
+          {aktif.length} {t.siparis.toLowerCase()} · {birlesik.length} {t.urun.toLowerCase()}
+        </span>
         <span className="sip-takip-ozet-pct">{topKarsilanan}/{topAdet} {t.topAdet}</span>
       </div>
-      <div className="sip-takip-ozet-bar">
-        <div className={`sip-takip-ozet-fill${yuzde === 100 ? ' sip-ozet-done' : ''}`}
-          style={{ width: `${yuzde}%` }} />
+
+      {/* Genel ilerleme barı (üç katmanlı) */}
+      <div className="sip-ozet-3bar">
+        <div className="sip-ozet-3bar-green" style={{ width: `${genelYuzde}%` }} />
+        <div className="sip-ozet-3bar-purple" style={{ left: `${genelYuzde}%`, width: `${genelHazirYuzde}%` }} />
       </div>
+
+      {/* Durum pill'leri */}
       {durumSayilari.length > 0 && (
         <div className="sip-takip-ozet-pills">
           {durumSayilari.map(d => (
@@ -561,6 +592,34 @@ function TakipOzet({ t, siparisler }) {
           ))}
         </div>
       )}
+
+      {/* Birleşik ürün listesi */}
+      <div className="sip-ozet-list">
+        {birlesik.map(u => {
+          const kPct = u.toplam > 0 ? Math.round((u.karsilanan / u.toplam) * 100) : 0;
+          const hPct = u.toplam > 0 ? Math.round((u.hazirlanan / u.toplam) * 100) : 0;
+          const kalan = u.toplam - u.karsilanan - u.hazirlanan;
+
+          return (
+            <div key={u.kod} className="sip-ozet-item">
+              <div className="sip-ozet-item-top">
+                <span className="sip-ozet-item-ad">{u.ad}</span>
+                <span className="sip-ozet-item-adet">{u.toplam} {t.topAdet}</span>
+              </div>
+              <div className="sip-ozet-item-kod">{u.kod}</div>
+              <div className="sip-ozet-3bar">
+                <div className="sip-ozet-3bar-green" style={{ width: `${kPct}%` }} />
+                <div className="sip-ozet-3bar-purple" style={{ left: `${kPct}%`, width: `${hPct}%` }} />
+              </div>
+              <div className="sip-ozet-item-stats">
+                {u.karsilanan > 0 && <span className="sip-ozet-stat-green">{u.karsilanan} ✓</span>}
+                {u.hazirlanan > 0 && <span className="sip-ozet-stat-purple">{u.hazirlanan} ⏳</span>}
+                {kalan > 0 && <span className="sip-ozet-stat-gray">{kalan} bekliyor</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
