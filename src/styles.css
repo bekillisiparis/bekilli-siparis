@@ -178,6 +178,16 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-chips .sip-chip { font-size: 11px; }
 .sip-chips-label { font-size: 11px; font-weight: 600; color: var(--sip-text-muted); padding: 8px 0 4px; border-top: 1px solid var(--sip-border-faint); }
 
+/* ── Takip Özet ────────────────────────────────────── */
+.sip-takip-ozet { padding: 10px 12px; margin-bottom: 10px; background: var(--sip-bg-subtle); border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); }
+.sip-takip-ozet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.sip-takip-ozet-title { font-size: 11px; font-weight: 600; color: var(--sip-text); }
+.sip-takip-ozet-pct { font-size: 10px; font-weight: 600; color: var(--sip-text-muted); }
+.sip-takip-ozet-bar { height: 4px; background: var(--sip-bg-input); border-radius: 2px; overflow: hidden; }
+.sip-takip-ozet-fill { height: 100%; border-radius: 2px; background: var(--sip-accent); transition: width .3s; }
+.sip-takip-ozet-fill.sip-ozet-done { background: var(--sip-success-text); }
+.sip-takip-ozet-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+
 /* ── Takip Panel (sağ) ─────────────────────────────── */
 .sip-status-section { margin-bottom: 10px; }
 .sip-status-label { font-size: 11px; font-weight: 600; color: var(--sip-text-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }

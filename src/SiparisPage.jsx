@@ -524,6 +524,47 @@ function MobileKatalogList({ t, filtered, fiyatlar, search, setSearch, kategoril
   );
 }
 
+// ── Takip Özet (üst kısım) ───────────────────────────
+function TakipOzet({ t, siparisler }) {
+  const aktif = siparisler.filter(s => s.durum !== 'iptal');
+  const topKalem = aktif.reduce((s, g) => s + (g.kalemler?.length || 0), 0);
+  const topAdet = aktif.reduce((s, g) => s + (g.kalemler || []).reduce((a, k) => a + k.adet, 0), 0);
+  const topKarsilanan = aktif.reduce((s, g) => s + (g.kalemler || []).reduce((a, k) => a + (k.karsilanan || 0), 0), 0);
+  const yuzde = topAdet > 0 ? Math.round((topKarsilanan / topAdet) * 100) : 0;
+
+  const durumlar = [
+    { key: 'beklemede',    label: t.beklemede,    badge: 'bekle' },
+    { key: 'hazirlaniyor', label: t.hazirlaniyor, badge: 'hazir' },
+    { key: 'kismi',        label: t.kismi,        badge: 'kismi' },
+    { key: 'tamamlandi',   label: t.tamamlandi,   badge: 'tamam' },
+  ];
+  const durumSayilari = durumlar
+    .map(d => ({ ...d, count: siparisler.filter(s => s.durum === d.key).length }))
+    .filter(d => d.count > 0);
+
+  return (
+    <div className="sip-takip-ozet">
+      <div className="sip-takip-ozet-head">
+        <span className="sip-takip-ozet-title">{aktif.length} {t.siparis.toLowerCase()} · {topKalem} {t.satirlar}</span>
+        <span className="sip-takip-ozet-pct">{topKarsilanan}/{topAdet} {t.topAdet}</span>
+      </div>
+      <div className="sip-takip-ozet-bar">
+        <div className={`sip-takip-ozet-fill${yuzde === 100 ? ' sip-ozet-done' : ''}`}
+          style={{ width: `${yuzde}%` }} />
+      </div>
+      {durumSayilari.length > 0 && (
+        <div className="sip-takip-ozet-pills">
+          {durumSayilari.map(d => (
+            <span key={d.key} className={`sip-badge sip-badge-${d.badge}`} style={{ fontSize: 9 }}>
+              {d.count} {d.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Takip Panel (Sağ) ───────────────────────────────
 function TakipPanel({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle, onKalemSil }) {
   const beklemede = siparisler.filter(s => s.durum === 'beklemede');
@@ -536,6 +577,7 @@ function TakipPanel({ t, siparisler, fiyatlar, busy, onGrupSil, onKalemGuncelle,
 
   return (
     <div>
+      <TakipOzet t={t} siparisler={siparisler} />
       {beklemede.length > 0 && <StatusGroup label={t.beklemede} status="bekle" items={beklemede} t={t} fiyatlar={fiyatlar} busy={busy} onGrupSil={onGrupSil} onKalemGuncelle={onKalemGuncelle} onKalemSil={onKalemSil} />}
       {hazirlaniyor.length > 0 && <StatusGroup label={t.hazirlaniyor} status="hazir" items={hazirlaniyor} t={t} fiyatlar={fiyatlar} busy={busy} />}
       {kismi.length > 0 && <StatusGroup label={t.kismi} status="kismi" items={kismi} t={t} fiyatlar={fiyatlar} busy={busy} />}
