@@ -609,7 +609,7 @@ function TakipOzet({ t, siparisler }) {
                   <div className="sip-ozet-2bar-orange" style={{ left: `${morPct}%`, width: `${100 - morPct}%` }} />
                 </div>
                 <div className="sip-ozet-item-stats">
-                  {u.hazirlanan > 0 && <span className="sip-ozet-stat-purple">{u.hazirlanan} ⏳</span>}
+                  {u.hazirlanan > 0 && <span className="sip-ozet-stat-purple">{u.hazirlanan} hazırlanıyor</span>}
                   {u.kalan > 0 && <span className="sip-ozet-stat-warn">{u.kalan} bekliyor</span>}
                 </div>
               </div>
