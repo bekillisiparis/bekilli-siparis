@@ -162,6 +162,12 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-kalem-sil { color: var(--sip-danger); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; border: none; background: none; font-family: inherit; }
 .sip-kalem-sil:hover { background: var(--sip-danger-bg); }
 
+/* ── Muadil önerisi (sepet) ── */
+.sip-muadil-wrap { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; width: 100%; margin-top: 4px; font-size: 10px; }
+.sip-muadil-label { color: var(--sip-warning-text); font-weight: 600; }
+.sip-muadil-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--sip-accent); background: var(--sip-accent-bg); color: var(--sip-accent); cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s; }
+.sip-muadil-chip:hover { background: var(--sip-accent); color: #fff; }
+
 /* Butonlar */
 .sip-btn { padding: 7px 16px; border-radius: 16px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }
 .sip-btn-primary { background: var(--sip-accent); color: var(--sip-on-accent); }

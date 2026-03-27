@@ -67,6 +67,9 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
   function sepetNotGuncelle(id, not) {
     setSepet(prev => prev.map(s => s.id === id ? { ...s, not: (not || '').slice(0, 500) } : s));
   }
+  function sepetMuadilSwap(id, yeniKod, yeniAd) {
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, urunKod: yeniKod, urunAd: yeniAd } : s));
+  }
 
   async function siparisGonder() {
     if (sepet.length === 0 || busy) return;
@@ -204,6 +207,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
           <SepetPanel
             t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
             busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle} onNotGuncelle={sepetNotGuncelle}
+            onMuadilSwap={sepetMuadilSwap}
             onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar} showToast={showToast}
           />
           {/* Mobil: inline katalog (≤1024px) */}
@@ -323,7 +327,7 @@ function SearchAddBar({ katalog, placeholder, onAdd, onSelect }) {
 }
 
 // ── Sepet Panel (Orta) ──────────────────────────────
-function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onNotGuncelle, onEkle, onGonder, sikAlinanlar, showToast }) {
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onNotGuncelle, onMuadilSwap, onEkle, onGonder, sikAlinanlar, showToast }) {
   const excelRef = useRef(null);
   const [excelBusy, setExcelBusy] = useState(false);
 
@@ -429,6 +433,26 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
                     border: '1px solid var(--sip-border)', background: 'var(--sip-bg-secondary)',
                     color: 'var(--sip-text)', outline: 'none' }}
                 />
+                {/* Muadil önerisi: stokta yoksa aynı parcaNo stokta olanları göster */}
+                {(() => {
+                  const u = katalog.find(x => x.kod === item.urunKod);
+                  if (!u || u.stokVar) return null;
+                  const parcaNo = u.parcaNo || '';
+                  if (!parcaNo) return null;
+                  const muadiller = katalog.filter(x => x.parcaNo === parcaNo && x.kod !== item.urunKod && x.stokVar);
+                  if (muadiller.length === 0) return null;
+                  return (
+                    <div className="sip-muadil-wrap">
+                      <span className="sip-muadil-label">{t.stok_yok} —</span>
+                      {muadiller.map(m => (
+                        <button key={m.kod} className="sip-muadil-chip"
+                          onClick={() => onMuadilSwap(item.id, m.kod, m.ad)}>
+                          {m.supplier || m.kod}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
