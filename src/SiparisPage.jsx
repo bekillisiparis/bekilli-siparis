@@ -476,6 +476,13 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
 // ── Mobil Inline Katalog (≤1024px) ─────────────────
 // Desktop'ta gizli. Mobilde form view içinde sepet altında flat liste olarak görünür.
 function MobileKatalogList({ t, filtered, fiyatlar, search, setSearch, kategoriler, markalar, suppliers, katFilter, setKatFilter, markaFilter, setMarkaFilter, supplierFilter, setSupplierFilter, onEkle }) {
+  const PAGE_SIZE = 50;
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  // Filtre/arama değişince sayfa sıfırla
+  useEffect(() => { setLimit(PAGE_SIZE); }, [filtered.length]);
+  const visible = filtered.slice(0, limit);
+  const hasMore = filtered.length > limit;
+
   return (
     <div className="sip-mobile-katalog">
       <div className="sip-mobile-katalog-header">
@@ -491,7 +498,7 @@ function MobileKatalogList({ t, filtered, fiyatlar, search, setSearch, kategoril
       </div>
       <div className="sip-mobile-katalog-list">
         {filtered.length === 0 && <div className="sip-empty">{t.bos_katalog}</div>}
-        {filtered.map(u => (
+        {visible.map(u => (
           <div key={u.kod} className="sip-mobile-katalog-item" onClick={() => onEkle(u.kod, u.ad, 1)}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="sip-mobile-katalog-kod">{u.kod}</div>
@@ -506,6 +513,12 @@ function MobileKatalogList({ t, filtered, fiyatlar, search, setSearch, kategoril
             </div>
           </div>
         ))}
+        {hasMore && (
+          <button className="sip-btn sip-btn-secondary" onClick={() => setLimit(l => l + PAGE_SIZE)}
+            style={{ width: '100%', marginTop: 8, fontSize: 12 }}>
+            +{filtered.length - limit} daha göster
+          </button>
+        )}
       </div>
     </div>
   );
