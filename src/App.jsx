@@ -44,7 +44,7 @@ function extractFiyatlar(raw) {
 // ── Dil ─────────────────────────────────────────────
 const LANG = {
   tr: {
-    siparis: 'Sipariş', hesabim: 'Hesabım', cikis: 'Çıkış', yenile: 'Yenile',
+    siparis: 'Sipariş', hesabim: 'Hesabım', cikis: 'Çıkış', yenile: 'Yenile', portal: 'Sipariş Portalı',
     pin_sub: 'Sipariş portalına giriş yapın', pin_placeholder: '6 haneli PIN', pin_btn: 'Giriş',
     pin_error: 'Geçersiz PIN veya bağlantı hatası', yukleniyor: 'Giriş yapılıyor...',
     oturumu_ac: 'Oturumu açık tut', oto_cikis: '15 dk hareketsizlikte otomatik çıkış',
@@ -71,7 +71,7 @@ const LANG = {
     tumunu_oku: 'Tümünü okundu yap', hesap_bos: 'Hesap bilgisi henüz oluşturulmadı.',
   },
   en: {
-    siparis: 'Order', hesabim: 'Account', cikis: 'Logout', yenile: 'Refresh',
+    siparis: 'Order', hesabim: 'Account', cikis: 'Logout', yenile: 'Refresh', portal: 'Order Portal',
     pin_sub: 'Login to order portal', pin_placeholder: '6-digit PIN', pin_btn: 'Login',
     pin_error: 'Invalid PIN or connection error', yukleniyor: 'Logging in...',
     oturumu_ac: 'Keep me signed in', oto_cikis: 'Auto-logout after 15 min of inactivity',
@@ -234,18 +234,34 @@ export default function App() {
 // ── Login ───────────────────────────────────────────
 function LoginScreen({ t, lang, setLang, theme, toggleTheme, loading, error, onLogin, keepSession, setKeepSession }) {
   const [input, setInput] = useState('');
+  const [shake, setShake] = useState(false);
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // Hata geldiğinde shake tetikle
+  useEffect(() => {
+    if (!error) return;
+    setShake(true);
+    setInput('');
+    const tm = setTimeout(() => setShake(false), 400);
+    return () => clearTimeout(tm);
+  }, [error]);
+
+  const dots = Array.from({ length: 6 }, (_, i) => (
+    <div key={`dot-${i}`} className={`sip-pin-dot${i < input.length ? ' filled' : ''}`} />
+  ));
+
   return (
     <div className="sip-login-container">
-      <div className="sip-login-card">
-        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 }}>
+      <div className={`sip-login-card${shake ? ' sip-shake' : ''}`}>
+        <div className="sip-login-toggles">
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
           <LangToggle lang={lang} setLang={setLang} />
         </div>
         <div className="sip-login-icon"><img src={BEKILLI_LOGO} alt="Bekilli Group" /></div>
+        <div className="sip-login-title">{t.portal || 'Sipariş Portalı'}</div>
         <p className="sip-login-sub">{t.pin_sub}</p>
+        <div className="sip-pin-dots">{dots}</div>
         <div className="sip-login-form">
           <input
             ref={inputRef} type="password" inputMode="numeric" maxLength={6}

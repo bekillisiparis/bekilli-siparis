@@ -99,12 +99,12 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 
 /* ── Top Nav ───────────────────────────────────────── */
 .sip-topnav { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 52px; background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.2); border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
-.sip-topnav-logo { font-size: 15px; font-weight: 700; color: var(--sip-text); display: flex; align-items: center; gap: 6px; }
+.sip-topnav-logo { font-size: 15px; font-weight: 600; color: var(--sip-text); display: flex; align-items: center; gap: 6px; }
 .sip-topnav-logo span { color: var(--sip-accent); }
 .sip-topnav-center { display: flex; gap: 0; }
 .sip-page-tab { padding: 12px 22px; font-size: 15px; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; position: relative; }
 .sip-page-tab:hover:not(.active) { color: var(--sip-text); }
-.sip-page-tab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 700; }
+.sip-page-tab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 600; }
 .sip-page-tab .sip-notif-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sip-danger); display: inline-block; margin-left: 4px; vertical-align: middle; }
 .sip-topnav-right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sip-text-muted); }
 .sip-topnav-user { font-weight: 500; color: var(--sip-text-dim); }
@@ -121,7 +121,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-3panel { display: grid; grid-template-columns: minmax(0,30fr) minmax(0,40fr) minmax(0,30fr); flex: 1; overflow: hidden; }
 .sip-panel { overflow-y: auto; padding: 14px; border-right: 1px solid var(--sip-border-light); }
 .sip-panel:last-child { border-right: none; }
-.sip-panel-title { font-size: 15px; font-weight: 700; color: var(--sip-text); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.sip-panel-title { font-size: 15px; font-weight: 600; color: var(--sip-text); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
 .sip-panel-count { font-size: 11px; background: var(--sip-bg-input); padding: 2px 8px; border-radius: 10px; color: var(--sip-text-muted); font-weight: 400; }
 
 /* ── Katalog Panel (sol) ───────────────────────────── */
@@ -256,10 +256,10 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-subtabs { display: flex; gap: 0; border-bottom: 1px solid var(--sip-border-light); margin-bottom: 10px; }
 .sip-subtab { padding: 8px 14px; font-size: 12px; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; font-weight: 500; }
 .sip-subtab:hover { color: var(--sip-text); }
-.sip-subtab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 700; }
+.sip-subtab.active { color: var(--sip-accent); border-bottom-color: var(--sip-accent); font-weight: 600; }
 
 /* Section titles */
-.sip-section-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--sip-text); display: flex; align-items: center; justify-content: space-between; }
+.sip-section-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--sip-text); display: flex; align-items: center; justify-content: space-between; }
 .sip-section-sum { font-size: 11px; color: var(--sip-text-muted); font-weight: 400; }
 
 /* Fatura kartları */
@@ -312,7 +312,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-odeme-tarih { font-size: 9px; color: var(--sip-text-faint); }
 .sip-odeme-tarih-lg { font-size: 13px; font-weight: 600; color: var(--sip-text); }
 .sip-odeme-yontem-lg { font-size: 11px; color: var(--sip-text-muted); margin-top: 1px; }
-.sip-odeme-tutar-lg { font-size: 15px; font-weight: 700; color: var(--sip-text); text-align: right; }
+.sip-odeme-tutar-lg { font-size: 15px; font-weight: 600; color: var(--sip-text); text-align: right; }
 .sip-odeme-mahsup .sip-odeme-tutar, .sip-odeme-mahsup .sip-odeme-tutar-lg { color: var(--sip-purple-text); }
 .sip-esleme { font-size: 9px; background: var(--sip-bg-input); padding: 1px 6px; border-radius: 8px; color: var(--sip-text-muted); }
 
@@ -349,27 +349,34 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-input-row .sip-input { flex: 1; }
 
 /* ── Login ─────────────────────────────────────────── */
-.sip-login-container { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0A0E15 0%, #212631 50%, #373F4E 100%); }
-.sip-login-card { background: var(--sip-bg); border-radius: var(--sip-r-xl); padding: 48px 36px; width: 100%; max-width: 380px; text-align: center; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-.sip-login-sub { font-size: 15px; color: var(--sip-text-muted); margin-bottom: 32px; }
+.sip-login-container { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0A0E15 0%, #151B2B 40%, #212631 70%, #373F4E 100%); }
+.sip-login-card { background: rgba(255,255,255,0.07); backdrop-filter: blur(24px) saturate(1.3); -webkit-backdrop-filter: blur(24px) saturate(1.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--sip-r-xl); padding: 48px 36px; width: 100%; max-width: 360px; text-align: center; position: relative; box-shadow: 0 0 1px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.25), 0 12px 24px rgba(0,0,0,0.3), 0 24px 48px rgba(0,0,0,0.2); animation: sip-fadeIn .4s ease; }
+.sip-login-card.sip-shake { animation: sip-login-shake .4s ease; }
+.sip-login-toggles { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; }
+.sip-login-icon { margin-bottom: 12px; }
+.sip-login-icon img { height: 56px; object-fit: contain; filter: brightness(1.8) contrast(0.9); }
+.sip-login-title { font-size: 12px; color: rgba(255,255,255,0.35); font-weight: 500; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 20px; }
+.sip-login-sub { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+.sip-pin-dots { display: flex; justify-content: center; gap: 10px; margin-bottom: 24px; }
+.sip-pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); transition: all .15s ease; }
+.sip-pin-dot.filled { background: var(--sip-accent); border-color: var(--sip-accent); box-shadow: 0 0 8px rgba(59,130,246,0.4); }
 .sip-login-form { display: flex; flex-direction: column; gap: 12px; }
-.sip-login-icon { margin-bottom: 16px; }
-.sip-login-icon img { height: 60px; object-fit: contain; }
-.sip-pin-input { width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 12px; border: 2px solid var(--sip-border); border-radius: 16px; outline: none; font-family: inherit; background: var(--sip-bg); color: var(--sip-text); transition: border-color 0.2s; }
-.sip-pin-input:focus { border-color: var(--sip-accent); }
-.sip-pin-btn { padding: 14px; font-size: 16px; font-weight: 700; border: none; border-radius: 16px; background: var(--sip-accent); color: var(--sip-on-accent); cursor: pointer; font-family: inherit; transition: all 0.2s; }
-.sip-pin-btn:hover:not(:disabled) { background: var(--sip-accent-hover); }
-.sip-pin-btn:disabled { opacity: 0.4; cursor: default; }
-.sip-login-error { color: var(--sip-danger); font-size: 14px; margin-top: 12px; font-weight: 500; }
-.sip-keep-session { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; cursor: pointer; user-select: none; }
+.sip-pin-input { width: 100%; padding: 14px 16px; font-size: 22px; text-align: center; letter-spacing: 10px; border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; outline: none; font-family: inherit; background: rgba(255,255,255,0.04); color: #fff; transition: border-color 0.2s; }
+.sip-pin-input::placeholder { color: rgba(255,255,255,0.2); }
+.sip-pin-input:focus { border-color: var(--sip-accent); background: rgba(255,255,255,0.06); }
+.sip-pin-btn { padding: 13px; font-size: 15px; font-weight: 600; border: none; border-radius: 20px; background: var(--sip-accent); color: var(--sip-on-accent); cursor: pointer; font-family: inherit; transition: all 0.2s; letter-spacing: 0.3px; }
+.sip-pin-btn:hover:not(:disabled) { background: var(--sip-accent-hover); transform: translateY(-1px); }
+.sip-pin-btn:active:not(:disabled) { transform: scale(0.98); }
+.sip-pin-btn:disabled { opacity: 0.35; cursor: default; }
+.sip-login-error { color: #FCA5A5; font-size: 13px; margin-top: 12px; font-weight: 500; }
+.sip-keep-session { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; cursor: pointer; user-select: none; }
 .sip-keep-session input { width: 15px; height: 15px; accent-color: var(--sip-accent); cursor: pointer; }
-.sip-keep-session span { font-size: 12px; color: var(--sip-text-muted); font-weight: 500; }
-.sip-oto-cikis { font-size: 10px; color: var(--sip-orange); margin-top: 4px; text-align: center; font-weight: 500; }
+.sip-keep-session span { font-size: 12px; color: rgba(255,255,255,0.45); font-weight: 500; }
+.sip-oto-cikis { font-size: 11px; color: rgba(249,115,22,0.7); margin-top: 4px; text-align: center; font-weight: 500; }
 
 /* ── Dark mode overrides ───────────────────────────── */
-[data-theme="dark"] .sip-login-container { background: #060810; }
-[data-theme="dark"] .sip-login-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(24px) saturate(1.3); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-[data-theme="dark"] .sip-login-icon img { filter: brightness(1.8) contrast(0.9); }
+[data-theme="dark"] .sip-login-container { background: linear-gradient(135deg, #030508 0%, #0A0E15 50%, #151B2B 100%); }
+[data-theme="dark"] .sip-login-card { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-topnav { background: rgba(6,8,16,0.85); backdrop-filter: blur(16px); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-kat-panel { background: rgba(255,255,255,0.02); }
 [data-theme="dark"] .sip-panel { border-color: rgba(255,255,255,0.06); }
@@ -460,8 +467,12 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-mobile-subtabs .sip-page-tab { flex: 1; text-align: center; }
   .sip-hide-mobile { display: none !important; }
   .sip-hide-desktop { display: block; }
-  .sip-pin-input { font-size: 20px; letter-spacing: 8px; }
-  .sip-login-card { padding: 36px 24px; }
+  .sip-pin-input { font-size: 20px; letter-spacing: 8px; padding: 12px 14px; }
+  .sip-login-container { padding: 16px; }
+  .sip-login-card { padding: 40px 24px; max-width: 100%; }
+  .sip-login-icon img { height: 48px; }
+  .sip-pin-dots { gap: 8px; }
+  .sip-pin-dot { width: 12px; height: 12px; }
   .sip-search { font-size: 16px; padding: 10px 12px; }
   /* Zoom fix: iOS 16px altında otomatik yakınlaştırıyor */
   input, select, textarea { font-size: 16px !important; }
@@ -485,3 +496,4 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 @keyframes sip-slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sip-slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes sip-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sip-login-shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-8px); } 30% { transform: translateX(8px); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } 90% { transform: translateX(3px); } }
