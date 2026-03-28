@@ -493,7 +493,7 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
       <div className={`sip-fatura ${borderKlass}`} onClick={onToggle}>
         <div className="sip-fatura-header">
           <span className="sip-fatura-no">
-            {isIade && <span className="sip-badge sip-badge-hazir" style={{ marginRight: 6, fontSize: 9 }}>{t.iade}</span>}
+            {isIade && <span className="sip-badge sip-badge-hazir" style={{ marginRight: 6, fontSize: 9 }}>{t.iade_kisa}</span>}
             {f.no || '—'}
             {isAcik && f.gecikmeGun > 0 && <span className={`sip-gecikme ${gecikmeKlass}`}>{f.gecikmeGun} {t.gun}</span>}
             {isKapali && <span className="sip-fatura-check">✓</span>}
