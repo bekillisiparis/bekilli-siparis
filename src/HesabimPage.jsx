@@ -298,18 +298,18 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
             )}
             {acikFaturalar.length === 0 ? <div className="sip-empty">{t.fatura_yok}</div> : (
               [...acikFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
-                <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur}
+                <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur} tip="acik"
                   isOpen={openFaturaId === f.no} onToggle={() => setOpenFaturaId(openFaturaId === f.no ? null : f.no)} />
               ))
             )}
           </>
         )}
 
-        {/* ── Kapanan Faturalar (detay + PDF/Excel) ── */}
+        {/* ── Kapanan Faturalar ── */}
         {faturaTab === 'kapanan' && (
           kapananFaturalar.length === 0 ? <div className="sip-empty">Kapanan fatura yok</div> : (
             [...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
-              <FaturaCard key={f.no || i} f={{ ...f, kalan: 0, odenen: f.tutar }} t={t} tlKur={tlKur} kapali
+              <FaturaCard key={f.no || i} f={{ ...f, kalan: 0, odenen: f.tutar }} t={t} tlKur={tlKur} tip="kapanan"
                 isOpen={openFaturaId === `k${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `k${f.no}` ? null : `k${f.no}`)} />
             ))
           )
@@ -319,18 +319,8 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
         {faturaTab === 'iade' && (
           bekleyenIadeler.length === 0 ? <div className="sip-empty">İade yok</div> : (
             bekleyenIadeler.map((f, i) => (
-              <div key={f.no || i} className="sip-fatura iade">
-                <div className="sip-fatura-header">
-                  <div><span className="sip-badge sip-badge-hazir" style={{ marginRight: 6 }}>{t.iade}</span><span className="sip-fatura-no">{f.no || '—'}</span></div>
-                  <span className="sip-iade-tutar">-${fmt(f.tutar)}</span>
-                </div>
-                <div className="sip-fatura-meta"><span>{fmtD(f.tarih)}</span>{f.aciklama && <span>{f.aciklama}</span>}</div>
-                {Array.isArray(f.kalemler) && f.kalemler.length > 0 && (
-                  <div className="sip-kalem-detay">{f.kalemler.map((k, ki) => (
-                    <div key={ki} className="sip-kalem-detay-row"><span>{k.urunAd || k.urunKod}</span><span>{k.adet}x · -${fmt(k.toplam)}</span></div>
-                  ))}</div>
-                )}
-              </div>
+              <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur} tip="iade"
+                isOpen={openFaturaId === `i${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `i${f.no}` ? null : `i${f.no}`)} />
             ))
           )
         )}
@@ -480,39 +470,73 @@ function OdemelerView({ t, sonOdemeler, tlKur, onBack }) {
   );
 }
 
-// ── Fatura Card (açık + kapanan, accordion) ──────────
-function FaturaCard({ f, t, tlKur, isOpen, onToggle, kapali }) {
-  const gecikmeKlass = !kapali && f.gecikmeGun >= 30 ? 'sip-gecikme-kritik' : !kapali && f.gecikmeGun >= 7 ? 'sip-gecikme-uyari' : !kapali && f.gecikmeGun > 0 ? 'sip-gecikme-yeni' : '';
-  const borderKlass = kapali ? 'sip-fatura-kapali' : f.gecikmeGun >= 30 ? 'sip-fatura-gecikme-kritik' : f.gecikmeGun >= 7 ? 'sip-fatura-gecikme-uyari' : 'sip-fatura-yeni';
-  const progress = f.tutar > 0 ? Math.min(100, ((f.odenen || 0) / f.tutar) * 100) : 0;
+// ── Fatura Card (TEP: acik + kapanan + iade — tek component) ──
+function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
+  const isIade = tip === 'iade';
+  const isKapali = tip === 'kapanan';
+  const isAcik = tip === 'acik';
+
+  // Renk kodlu kenar
+  const borderKlass = isIade ? 'iade' : isKapali ? 'sip-fatura-kapali'
+    : (f.gecikmeGun >= 30 ? 'sip-fatura-gecikme-kritik' : f.gecikmeGun >= 7 ? 'sip-fatura-gecikme-uyari' : 'sip-fatura-yeni');
+
+  // Gecikme badge
+  const gecikmeKlass = isAcik && f.gecikmeGun >= 30 ? 'sip-gecikme-kritik'
+    : isAcik && f.gecikmeGun >= 7 ? 'sip-gecikme-uyari'
+    : isAcik && f.gecikmeGun > 0 ? 'sip-gecikme-yeni' : '';
+
+  // Progress bar (sadece açık)
+  const progress = isAcik && f.tutar > 0 ? Math.min(100, ((f.odenen || 0) / f.tutar) * 100) : 0;
 
   return (
     <div>
       <div className={`sip-fatura ${borderKlass}`} onClick={onToggle}>
         <div className="sip-fatura-header">
           <span className="sip-fatura-no">
+            {isIade && <span className="sip-badge sip-badge-hazir" style={{ marginRight: 6, fontSize: 9 }}>{t.iade}</span>}
             {f.no || '—'}
-            {!kapali && f.gecikmeGun > 0 && <span className={`sip-gecikme ${gecikmeKlass}`}>{f.gecikmeGun} {t.gun}</span>}
-            {kapali && <span style={{ fontSize: 10, color: 'var(--sip-success-text)', marginLeft: 6, fontWeight: 600 }}>✓</span>}
+            {isAcik && f.gecikmeGun > 0 && <span className={`sip-gecikme ${gecikmeKlass}`}>{f.gecikmeGun} {t.gun}</span>}
+            {isKapali && <span className="sip-fatura-check">✓</span>}
           </span>
-          {kapali ? <span style={{ fontSize: 12, color: 'var(--sip-text-muted)' }}>${fmt(f.tutar)}</span> : <span className="sip-fatura-kalan">${fmt(f.kalan)}</span>}
+          {isIade
+            ? <span className="sip-iade-tutar">-${fmt(f.tutar)}</span>
+            : isKapali
+              ? <span className="sip-fatura-tutar-kapali">${fmt(f.tutar)}</span>
+              : <span className="sip-fatura-kalan">${fmt(f.kalan)}</span>
+          }
         </div>
         <div className="sip-fatura-meta">
           <span>{fmtD(f.tarih)}</span>
-          {!kapali && <span>{t.toplam}: ${fmt(f.tutar)}</span>}
-          {!kapali && <span>{t.odenen}: ${fmt(f.odenen || 0)}</span>}
+          {isAcik && <span>{t.toplam}: ${fmt(f.tutar)}</span>}
+          {isAcik && <span>{t.odenen}: ${fmt(f.odenen || 0)}</span>}
+          {isIade && f.aciklama && <span>{f.aciklama}</span>}
+          {isKapali && <span>{t.toplam}: ${fmt(f.tutar)}</span>}
         </div>
-        {!kapali && <div className="sip-fatura-bar"><div className="sip-fatura-bar-fill" style={{ width: `${progress}%` }} /></div>}
+        {isAcik && <div className="sip-fatura-bar"><div className="sip-fatura-bar-fill" style={{ width: `${progress}%` }} /></div>}
       </div>
       {isOpen && (
         <div className="sip-kalem-detay">
-          {f.orijinalDoviz && f.orijinalDoviz !== 'USD' && <div className="sip-kalem-detay-row"><span>{f.orijinalDoviz}</span><span>{fmt(f.orijinalTutar)}</span></div>}
-          {tlKur > 0 && <div className="sip-kalem-detay-row"><span>TL karşılığı</span><span>₺{fmt((f.tutar || 0) * tlKur, 0)}</span></div>}
-          {f.kdvOrani > 0 && <div className="sip-kalem-detay-row"><span>KDV %{f.kdvOrani}</span><span>${fmt(f.kdvTutar)}</span></div>}
+          {f.orijinalDoviz && f.orijinalDoviz !== 'USD' && (
+            <div className="sip-kalem-detay-row"><span>{f.orijinalDoviz}</span><span>{fmt(f.orijinalTutar)}</span></div>
+          )}
+          {tlKur > 0 && (
+            <div className="sip-kalem-detay-row"><span>TL karşılığı</span><span>₺{fmt((f.tutar || 0) * tlKur, 0)}</span></div>
+          )}
+          {f.kdvOrani > 0 && (
+            <div className="sip-kalem-detay-row"><span>KDV %{f.kdvOrani}</span><span>${fmt(f.kdvTutar)}</span></div>
+          )}
           {Array.isArray(f.kalemler) && f.kalemler.length > 0 && f.kalemler.map((k, ki) => (
-            <div key={ki}>
-              <div className="sip-kalem-detay-row"><span>{k.urunAd || k.urunKod} ({k.adet}x)</span><span>${fmt(k.toplam)}</span></div>
-              {k.not && <div style={{ fontSize: 9, color: 'var(--sip-text-muted)', fontStyle: 'italic', paddingLeft: 8, marginTop: -2, marginBottom: 4 }}>💬 {k.not}</div>}
+            <div key={ki} className="sip-kalem-row">
+              <div className="sip-kalem-main">
+                <span className="sip-kalem-sira">{ki + 1}</span>
+                <div className="sip-kalem-info">
+                  <span className="sip-kalem-ad">{k.urunAd || k.urunKod || '—'}</span>
+                  {k.urunKod && k.urunAd && <span className="sip-kalem-kod">{k.urunKod}</span>}
+                </div>
+                <span className="sip-kalem-adet">{k.adet}x</span>
+                <span className="sip-kalem-tutar">{isIade ? '-' : ''}${fmt(k.toplam)}</span>
+              </div>
+              {k.not && <div className="sip-kalem-not-text">{k.not}</div>}
             </div>
           ))}
           <div className="sip-fatura-actions">

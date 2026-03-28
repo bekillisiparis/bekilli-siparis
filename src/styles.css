@@ -298,6 +298,8 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-fatura-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
 .sip-fatura-no { font-size: 12px; font-weight: 600; color: var(--sip-text); }
 .sip-fatura-kalan { font-size: 14px; font-weight: 600; color: var(--sip-danger); }
+.sip-fatura-tutar-kapali { font-size: 12px; color: var(--sip-text-muted); }
+.sip-fatura-check { font-size: 10px; color: var(--sip-success-text); margin-left: 6px; font-weight: 600; }
 .sip-fatura-meta { font-size: 10px; color: var(--sip-text-muted); display: flex; gap: 10px; }
 .sip-fatura-bar { height: 4px; background: var(--sip-bg-input); border-radius: 2px; margin-top: 5px; overflow: hidden; }
 .sip-fatura-bar-fill { height: 100%; border-radius: 2px; background: var(--sip-accent); transition: width .3s; }
@@ -309,9 +311,20 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 [data-theme="dark"] .sip-gecikme-yeni { background: rgba(59,130,246,0.15); color: #93C5FD; }
 
 /* Fatura kalem detay */
-.sip-kalem-detay { padding: 8px 12px; background: var(--sip-bg-subtle); border-radius: 0 0 var(--sip-r-sm) var(--sip-r-sm); font-size: 10px; margin-top: -3px; margin-bottom: 5px; border: 1px solid var(--sip-border-faint); border-top: none; }
+.sip-kalem-detay { padding: 10px 12px; background: var(--sip-bg-subtle); border-radius: 0 0 var(--sip-r-sm) var(--sip-r-sm); font-size: 10px; margin-top: -3px; margin-bottom: 5px; border: 1px solid var(--sip-border-faint); border-top: none; }
 .sip-kalem-detay-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--sip-border-faint); }
 .sip-kalem-detay-row:last-child { border-bottom: none; }
+/* Kalem satırları — yapılandırılmış */
+.sip-kalem-row { padding: 6px 0; border-bottom: 1px solid var(--sip-border-faint); }
+.sip-kalem-row:last-of-type { border-bottom: none; }
+.sip-kalem-main { display: flex; align-items: center; gap: 8px; }
+.sip-kalem-sira { font-size: 9px; color: var(--sip-text-faint); min-width: 14px; text-align: center; }
+.sip-kalem-info { flex: 1; min-width: 0; }
+.sip-kalem-ad { font-size: 11px; font-weight: 500; color: var(--sip-text); display: block; }
+.sip-kalem-kod { font-size: 9px; color: var(--sip-text-muted); display: block; margin-top: 1px; }
+.sip-kalem-adet { font-size: 11px; font-weight: 500; color: var(--sip-text-dim); min-width: 28px; text-align: center; }
+.sip-kalem-tutar { font-size: 11px; font-weight: 600; color: var(--sip-text); min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+.sip-kalem-not-text { font-size: 9px; color: var(--sip-accent); font-style: italic; padding-left: 22px; margin-top: 2px; }
 .sip-fatura-actions { display: flex; gap: 6px; margin-top: 8px; }
 .sip-fatura-action { font-size: 10px; padding: 3px 10px; border-radius: 10px; border: 1px solid var(--sip-border); background: var(--sip-bg); cursor: pointer; color: var(--sip-text-muted); font-family: inherit; transition: all .15s; }
 .sip-fatura-action:hover { border-color: var(--sip-accent); color: var(--sip-accent); }
