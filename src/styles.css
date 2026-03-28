@@ -324,6 +324,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-kalem-kod { font-size: 9px; color: var(--sip-text-muted); display: block; margin-top: 1px; }
 .sip-kalem-adet { font-size: 11px; font-weight: 500; color: var(--sip-text-dim); min-width: 28px; text-align: center; }
 .sip-kalem-tutar { font-size: 11px; font-weight: 600; color: var(--sip-text); min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+.sip-kalem-odenen { color: var(--sip-success-text); }
 .sip-kalem-not-text { font-size: 9px; color: var(--sip-accent); font-style: italic; padding-left: 22px; margin-top: 2px; }
 .sip-fatura-actions { display: flex; gap: 6px; margin-top: 8px; }
 .sip-fatura-action { font-size: 10px; padding: 3px 10px; border-radius: 10px; border: 1px solid var(--sip-border); background: var(--sip-bg); cursor: pointer; color: var(--sip-text-muted); font-family: inherit; transition: all .15s; }

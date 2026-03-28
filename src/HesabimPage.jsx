@@ -516,16 +516,27 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
       </div>
       {isOpen && (
         <div className="sip-kalem-detay">
+          {/* Özet bilgiler — her zaman göster */}
+          {(isKapali || isIade) && (
+            <div className="sip-kalem-detay-row"><span>{t.toplam}</span><span>${fmt(f.tutar)}</span></div>
+          )}
           {f.orijinalDoviz && f.orijinalDoviz !== 'USD' && (
             <div className="sip-kalem-detay-row"><span>{f.orijinalDoviz}</span><span>{fmt(f.orijinalTutar)}</span></div>
           )}
           {tlKur > 0 && (
-            <div className="sip-kalem-detay-row"><span>TL karşılığı</span><span>₺{fmt((f.tutar || 0) * tlKur, 0)}</span></div>
+            <div className="sip-kalem-detay-row"><span>TL karşılığı</span><span>≈₺{fmt((f.tutar || 0) * tlKur, 0)}</span></div>
           )}
           {f.kdvOrani > 0 && (
             <div className="sip-kalem-detay-row"><span>KDV %{f.kdvOrani}</span><span>${fmt(f.kdvTutar)}</span></div>
           )}
-          {Array.isArray(f.kalemler) && f.kalemler.length > 0 && f.kalemler.map((k, ki) => (
+          {isAcik && f.odenen > 0 && (
+            <div className="sip-kalem-detay-row">
+              <span>{t.odenen}</span>
+              <span className="sip-kalem-odenen">${fmt(f.odenen)}</span>
+            </div>
+          )}
+          {/* Kalemler */}
+          {Array.isArray(f.kalemler) && f.kalemler.length > 0 ? f.kalemler.map((k, ki) => (
             <div key={ki} className="sip-kalem-row">
               <div className="sip-kalem-main">
                 <span className="sip-kalem-sira">{ki + 1}</span>
@@ -538,7 +549,11 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
               </div>
               {k.not && <div className="sip-kalem-not-text">{k.not}</div>}
             </div>
-          ))}
+          )) : (
+            <div className="sip-kalem-detay-row" style={{ opacity: 0.5 }}>
+              <span>Kalem detayı mevcut değil</span>
+            </div>
+          )}
           <div className="sip-fatura-actions">
             <button className="sip-fatura-action" onClick={e => { e.stopPropagation(); faturaPdfAc(f, tlKur); }}>PDF</button>
             <button className="sip-fatura-action" onClick={e => { e.stopPropagation(); faturaExcelIndir(f); }}>Excel</button>
