@@ -574,6 +574,7 @@ async function adminHesapGuncelle(body) {
           adet: parseInt(k.adet, 10) || 0,
           birimFiyat: parseFloat(k.birimFiyat) || 0,
           toplam: parseFloat(k.toplam) || 0,
+          ...(k.not ? { not: stripHtml(k.not).slice(0, 500) } : {}),
           // maliyet, alisFiyati, kar, marj, aciklama KASITLI OLARAK YOK (K6.11)
         }));
       }
@@ -581,14 +582,31 @@ async function adminHesapGuncelle(body) {
     });
   }
 
-  // Kapanan faturalar (son 20 özet)
+  // Kapanan faturalar (son 20, kalemler dahil)
   if (Array.isArray(kapananFaturalar)) {
-    data.kapananFaturalar = kapananFaturalar.slice(-20).map(f => ({
-      no: stripHtml(f.no || ''),
-      tarih: f.tarih || '',
-      tutar: parseFloat(f.tutar) || 0,
-      doviz: stripHtml(f.doviz || 'USD'),
-    }));
+    data.kapananFaturalar = kapananFaturalar.slice(-20).map(f => {
+      const temiz = {
+        no: stripHtml(f.no || ''),
+        tarih: f.tarih || '',
+        tutar: parseFloat(f.tutar) || 0,
+        doviz: stripHtml(f.doviz || 'USD'),
+      };
+      if (parseFloat(f.kdvOrani) > 0) {
+        temiz.kdvOrani = parseFloat(f.kdvOrani);
+        temiz.kdvTutar = parseFloat(f.kdvTutar) || 0;
+      }
+      if (Array.isArray(f.kalemler)) {
+        temiz.kalemler = f.kalemler.map(k => ({
+          urunKod: stripHtml(k.urunKod || ''),
+          urunAd: stripHtml(k.urunAd || ''),
+          adet: parseInt(k.adet, 10) || 0,
+          birimFiyat: parseFloat(k.birimFiyat) || 0,
+          toplam: parseFloat(k.toplam) || 0,
+          ...(k.not ? { not: stripHtml(k.not).slice(0, 500) } : {}),
+        }));
+      }
+      return temiz;
+    });
   }
 
   // Son ödemeler (tahsilatlar + mahsuplaşmalar, FIFO eşleşme detaylı)
