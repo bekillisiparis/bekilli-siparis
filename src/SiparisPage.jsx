@@ -68,7 +68,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
     setSepet(prev => prev.map(s => s.id === id ? { ...s, not: (not || '').slice(0, 500) } : s));
   }
   function sepetMuadilSwap(id, yeniKod, yeniAd) {
-    setSepet(prev => prev.map(s => s.id === id ? { ...s, urunKod: yeniKod, urunAd: yeniAd } : s));
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, urunKod: yeniKod, urunAd: yeniAd, _originalKod: s._originalKod || s.urunKod } : s));
   }
 
   async function siparisGonder() {
@@ -413,25 +413,41 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
           {sepet.map(item => {
             const f = fiyatlar[item.urunKod];
             const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
+            const isMuadil = !!item._originalKod;
             return (
-              <div key={item.id} className="sip-kalem-row" style={{ flexWrap: 'wrap' }}>
-                <span className="sip-kalem-ad">
-                  {item.urunAd}
-                  {item.yeniUrunData && <span className="sip-badge sip-badge-hazir" style={{ marginLeft: 4, fontSize: 8 }}>NEW</span>}
-                </span>
-                <input type="number" min="1" max="99999" value={item.adet}
-                  onChange={e => onAdetGuncelle(item.id, e.target.value)} className="sip-kalem-adet" />
-                <span className="sip-kalem-tutar">
-                  {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '?'}
-                </span>
-                <button className="sip-kalem-sil" onClick={() => onSil(item.id)}>×</button>
+              <div key={item.id} className={`sip-kalem-card${isMuadil ? ' sip-kalem-muadil' : ''}`}>
+                {/* Satır 1: Kod badge + Ad + Muadil badge */}
+                <div className="sip-kalem-top">
+                  <code className="sip-kalem-kod">{item.urunKod}</code>
+                  <span className="sip-kalem-ad">{item.urunAd}</span>
+                  {item.yeniUrunData && <span className="sip-badge sip-badge-hazir">NEW</span>}
+                  {isMuadil && <span className="sip-badge sip-badge-muadil">MUADIL</span>}
+                </div>
+                {/* Muadil: eski kod gösterimi */}
+                {isMuadil && (
+                  <div className="sip-kalem-swap-info">
+                    <span className="sip-kalem-swap-old">{item._originalKod}</span>
+                    <span className="sip-kalem-swap-arrow">&rarr;</span>
+                    <span className="sip-kalem-swap-new">{item.urunKod}</span>
+                  </div>
+                )}
+                {/* Satır 2: Stepper + Fiyat + Sil */}
+                <div className="sip-kalem-bottom">
+                  <div className="sip-stepper">
+                    <button className="sip-stepper-btn" onClick={() => item.adet > 1 && onAdetGuncelle(item.id, item.adet - 1)}>−</button>
+                    <span className="sip-stepper-val">{item.adet}</span>
+                    <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, item.adet + 1)}>+</button>
+                  </div>
+                  <span className="sip-kalem-tutar">
+                    {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : t.fiyat_sorulacak || '?'}
+                  </span>
+                  <button className="sip-kalem-sil" onClick={() => onSil(item.id)}>&times;</button>
+                </div>
+                {/* Satır 3: Not */}
                 <input
                   type="text" placeholder={t.not_placeholder || 'Not ekle...'} maxLength={500}
-                  value={item.not || ''}
-                  onChange={e => onNotGuncelle(item.id, e.target.value)}
-                  style={{ width: '100%', marginTop: 4, fontSize: 11, padding: '4px 8px', borderRadius: 6,
-                    border: '1px solid var(--sip-border)', background: 'var(--sip-bg-secondary)',
-                    color: 'var(--sip-text)', outline: 'none' }}
+                  value={item.not || ''} onChange={e => onNotGuncelle(item.id, e.target.value)}
+                  className="sip-kalem-not"
                 />
                 {/* Muadil önerisi: stokta yoksa aynı parcaNo stokta olanları göster */}
                 {(() => {
@@ -447,7 +463,7 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
                       {muadiller.map(m => (
                         <button key={m.kod} className="sip-muadil-chip"
                           onClick={() => onMuadilSwap(item.id, m.kod, m.ad)}>
-                          {m.supplier || m.kod}
+                          {m.kod}
                         </button>
                       ))}
                     </div>
@@ -464,27 +480,25 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
 
       {/* Toplam + Gönder */}
       {sepet.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 12, color: 'var(--sip-text-muted)', display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div className="sip-sepet-footer">
+          <div className="sip-sepet-summary">
             <span>{t.fiyatli_toplam}</span>
-            <span>{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
+            <span className="sip-sepet-summary-val">{sepetOzet.fiyatliToplam.toLocaleString()} {sepetOzet.doviz}</span>
           </div>
           {sepetOzet.fiyatSorulacak > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--sip-warning-text)', marginBottom: 4 }}>
+            <div className="sip-sepet-warning">
               {sepetOzet.fiyatSorulacak} {t.satirlar} — {t.fiyat_sorun_kalem}
             </div>
           )}
-          <div className="sip-btn-row">
-            <button className="sip-btn sip-btn-primary" onClick={onGonder} disabled={busy} style={{ flex: 1 }}>
-              {busy ? t.gonderiliyor : t.gonder}
-            </button>
-          </div>
+          <button className="sip-sepet-gonder" onClick={onGonder} disabled={busy}>
+            {busy ? t.gonderiliyor : t.gonder}
+          </button>
         </div>
       )}
 
       {/* Sık alınanlar */}
       {sikAlinanlar && sikAlinanlar.length > 0 && (
-        <div style={{ marginTop: 14 }}>
+        <div className="sip-sik-alinan-wrap">
           <div className="sip-chips-label">{t.sik_alinanlar || 'Sık Alınanlar'}</div>
           <div className="sip-chips">
             {sikAlinanlar.slice(0, 12).map(kod => (

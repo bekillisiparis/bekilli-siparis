@@ -151,22 +151,49 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-stok-yok { background: var(--sip-danger); }
 
 /* ── Sipariş Panel (orta) ──────────────────────────── */
-.sip-form-card { background: var(--sip-bg); border-radius: var(--sip-r-md); border: 1px solid var(--sip-border-light); padding: 14px; margin-bottom: 10px; box-shadow: var(--sip-shadow-sm); }
-.sip-form-header { font-size: 12px; color: var(--sip-text-muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.sip-form-card { background: var(--sip-bg); border-radius: var(--sip-r-md); border: 1px solid var(--sip-border-light); padding: 10px; margin-bottom: 10px; box-shadow: var(--sip-shadow-sm); }
+.sip-form-header { font-size: 12px; color: var(--sip-text-muted); margin-bottom: 6px; padding: 4px 6px; display: flex; justify-content: space-between; align-items: center; }
 .sip-form-total { font-weight: 600; color: var(--sip-text); }
-.sip-kalem-row { display: flex; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--sip-border-faint); font-size: 11px; }
-.sip-kalem-row:last-child { border-bottom: none; }
-.sip-kalem-ad { flex: 1; font-weight: 500; color: var(--sip-text); }
-.sip-kalem-adet { width: 44px; text-align: center; padding: 3px 4px; border: 1px solid var(--sip-border-light); border-radius: 6px; font-size: 11px; font-family: inherit; background: var(--sip-bg); color: var(--sip-text); }
-.sip-kalem-tutar { font-size: 11px; color: var(--sip-text-dim); min-width: 50px; text-align: right; }
-.sip-kalem-sil { color: var(--sip-danger); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; border: none; background: none; font-family: inherit; }
+.sip-kalem-card { padding: 10px 12px; border: 1px solid var(--sip-border-faint); border-radius: var(--sip-r-sm); margin-bottom: 6px; background: var(--sip-bg); transition: background .15s; }
+.sip-kalem-card:last-child { margin-bottom: 0; }
+.sip-kalem-muadil { background: rgba(249,115,22,0.04); border-color: rgba(249,115,22,0.2); }
+.sip-kalem-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.sip-kalem-kod { font-size: 11px; font-weight: 500; background: var(--sip-accent-bg); color: var(--sip-accent); padding: 2px 8px; border-radius: 6px; flex-shrink: 0; font-family: var(--sip-font); letter-spacing: 0.2px; }
+.sip-kalem-ad { font-size: 12px; font-weight: 500; color: var(--sip-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sip-kalem-swap-info { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 6px; padding: 4px 8px; background: rgba(249,115,22,0.06); border-radius: 6px; }
+.sip-kalem-swap-old { color: var(--sip-text-muted); text-decoration: line-through; }
+.sip-kalem-swap-arrow { color: var(--sip-text-faint); font-size: 12px; }
+.sip-kalem-swap-new { color: var(--sip-accent); font-weight: 500; }
+.sip-kalem-bottom { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.sip-stepper { display: flex; align-items: center; border: 1px solid var(--sip-border-light); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.sip-stepper-btn { width: 32px; height: 32px; border: none; background: var(--sip-bg-subtle); color: var(--sip-text-muted); font-size: 15px; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: background .1s; }
+.sip-stepper-btn:hover { background: var(--sip-accent-bg); color: var(--sip-accent); }
+.sip-stepper-btn:active { background: var(--sip-accent-bg-hover); }
+.sip-stepper-val { min-width: 36px; text-align: center; font-size: 13px; font-weight: 600; color: var(--sip-text); padding: 0 4px; }
+.sip-kalem-tutar { flex: 1; font-size: 12px; font-weight: 500; color: var(--sip-text-dim); text-align: right; }
+.sip-kalem-sil { color: var(--sip-danger); cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 6px; border: none; background: none; font-family: inherit; transition: background .1s; flex-shrink: 0; }
 .sip-kalem-sil:hover { background: var(--sip-danger-bg); }
+.sip-kalem-not { width: 100%; font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--sip-border-faint); background: var(--sip-bg-subtle); color: var(--sip-text); outline: none; font-family: inherit; transition: border-color .15s; }
+.sip-kalem-not:focus { border-color: var(--sip-accent); }
+.sip-kalem-not::placeholder { color: var(--sip-text-faint); }
+.sip-badge-muadil { background: rgba(249,115,22,0.12); color: var(--sip-orange); }
 
 /* ── Muadil önerisi (sepet) ── */
-.sip-muadil-wrap { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; width: 100%; margin-top: 4px; font-size: 10px; }
-.sip-muadil-label { color: var(--sip-warning-text); font-weight: 600; }
-.sip-muadil-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--sip-accent); background: var(--sip-accent-bg); color: var(--sip-accent); cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s; }
-.sip-muadil-chip:hover { background: var(--sip-accent); color: #fff; }
+.sip-muadil-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 8px; padding: 6px 8px; font-size: 11px; background: var(--sip-accent-bg-light); border-radius: 6px; }
+.sip-muadil-label { color: var(--sip-warning-text); font-weight: 600; font-size: 11px; }
+.sip-muadil-chip { font-size: 11px; padding: 3px 10px; border-radius: 14px; border: 1px solid var(--sip-accent); background: var(--sip-accent-bg); color: var(--sip-accent); cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s; }
+.sip-muadil-chip:hover { background: var(--sip-accent); color: var(--sip-on-accent); }
+
+/* ── Sepet footer + gönder ── */
+.sip-sepet-footer { margin-top: 14px; padding: 12px; background: var(--sip-bg); border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-md); }
+.sip-sepet-summary { font-size: 12px; color: var(--sip-text-muted); display: flex; justify-content: space-between; margin-bottom: 6px; }
+.sip-sepet-summary-val { font-weight: 600; color: var(--sip-text); }
+.sip-sepet-warning { font-size: 11px; color: var(--sip-warning-text); margin-bottom: 8px; }
+.sip-sepet-gonder { width: 100%; padding: 13px; font-size: 14px; font-weight: 600; border: none; border-radius: 20px; background: var(--sip-accent); color: var(--sip-on-accent); cursor: pointer; font-family: inherit; transition: all .2s; letter-spacing: 0.3px; }
+.sip-sepet-gonder:hover:not(:disabled) { background: var(--sip-accent-hover); transform: translateY(-1px); }
+.sip-sepet-gonder:active:not(:disabled) { transform: scale(0.98); }
+.sip-sepet-gonder:disabled { opacity: 0.4; cursor: default; }
+.sip-sik-alinan-wrap { margin-top: 14px; }
 
 /* Butonlar */
 .sip-btn { padding: 7px 16px; border-radius: 16px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }
@@ -383,6 +410,13 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 [data-theme="dark"] .sip-acc-head { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-urun-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-form-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); backdrop-filter: blur(8px); }
+[data-theme="dark"] .sip-kalem-card { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-kalem-muadil { background: rgba(249,115,22,0.06); border-color: rgba(249,115,22,0.15); }
+[data-theme="dark"] .sip-kalem-swap-info { background: rgba(249,115,22,0.08); }
+[data-theme="dark"] .sip-stepper-btn { background: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-kalem-not { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-sepet-footer { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-muadil-wrap { background: rgba(59,130,246,0.06); }
 [data-theme="dark"] .sip-bakiye { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-fatura { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-sip-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
