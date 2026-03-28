@@ -61,8 +61,12 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
   function sepettenSil(id) { setSepet(prev => prev.filter(s => s.id !== id)); }
   function sepetAdetGuncelle(id, yeniAdet) {
     const a = parseInt(yeniAdet);
-    if (!a || a < 1) return;
+    if (isNaN(a)) { setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: '' } : s)); return; }
+    if (a < 0 || a > 99999) return;
     setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: a } : s));
+  }
+  function sepetAdetBlur(id) {
+    setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: Math.max(parseInt(s.adet) || 1, 1) } : s));
   }
   function sepetNotGuncelle(id, not) {
     setSepet(prev => prev.map(s => s.id === id ? { ...s, not: (not || '').slice(0, 500) } : s));
@@ -76,7 +80,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
     setBusy(true);
     try {
       const kalemler = sepet.map(item => {
-        const k = { urunKod: item.urunKod, urunAd: item.urunAd, adet: item.adet, not: item.not || '' };
+        const k = { urunKod: item.urunKod, urunAd: item.urunAd, adet: parseInt(item.adet) || 1, not: item.not || '' };
         if (item.yeniUrunData) { k.yeniUrun = true; k.parcaNo = item.yeniUrunData.parcaNo; k.supplier = item.yeniUrunData.supplier; k.kategori = item.yeniUrunData.kategori; }
         return k;
       });
@@ -206,7 +210,7 @@ export default function SiparisPage({ t, pin, katalog, fiyatlar, siparisler, ref
           )}
           <SepetPanel
             t={t} sepet={sepet} fiyatlar={fiyatlar} katalog={katalog} filtered={filtered}
-            busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle} onNotGuncelle={sepetNotGuncelle}
+            busy={busy} onSil={sepettenSil} onAdetGuncelle={sepetAdetGuncelle} onAdetBlur={sepetAdetBlur} onNotGuncelle={sepetNotGuncelle}
             onMuadilSwap={sepetMuadilSwap}
             onEkle={sepeteEkle} onGonder={siparisGonder} sikAlinanlar={sikAlinanlar} showToast={showToast}
           />
@@ -327,7 +331,7 @@ function SearchAddBar({ katalog, placeholder, onAdd, onSelect }) {
 }
 
 // ── Sepet Panel (Orta) ──────────────────────────────
-function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onNotGuncelle, onMuadilSwap, onEkle, onGonder, sikAlinanlar, showToast }) {
+function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onAdetBlur, onNotGuncelle, onMuadilSwap, onEkle, onGonder, sikAlinanlar, showToast }) {
   const excelRef = useRef(null);
   const [excelBusy, setExcelBusy] = useState(false);
 
@@ -378,9 +382,10 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
   const sepetOzet = useMemo(() => {
     let fiyatliToplam = 0, fiyatSorulacak = 0, topAdet = 0;
     sepet.forEach(item => {
-      topAdet += item.adet;
+      const a = parseInt(item.adet) || 0;
+      topAdet += a;
       const f = fiyatlar[item.urunKod];
-      if (f?.fiyat) fiyatliToplam += item.adet * f.fiyat; else fiyatSorulacak++;
+      if (f?.fiyat) fiyatliToplam += a * f.fiyat; else fiyatSorulacak++;
     });
     return { fiyatliToplam, fiyatSorulacak, topAdet, doviz: Object.values(fiyatlar).find(f => f?.doviz)?.doviz || 'USD' };
   }, [sepet, fiyatlar]);
@@ -412,7 +417,7 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
           </div>
           {sepet.map(item => {
             const f = fiyatlar[item.urunKod];
-            const satirToplam = f?.fiyat ? item.adet * f.fiyat : null;
+            const satirToplam = f?.fiyat ? (parseInt(item.adet) || 0) * f.fiyat : null;
             const isMuadil = !!item._originalKod;
             return (
               <div key={item.id} className={`sip-kalem-card${isMuadil ? ' sip-kalem-muadil' : ''}`}>
@@ -434,9 +439,11 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
                 {/* Satır 2: Stepper + Fiyat + Sil */}
                 <div className="sip-kalem-bottom">
                   <div className="sip-stepper">
-                    <button className="sip-stepper-btn" onClick={() => item.adet > 1 && onAdetGuncelle(item.id, item.adet - 1)}>−</button>
-                    <span className="sip-stepper-val">{item.adet}</span>
-                    <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, item.adet + 1)}>+</button>
+                    <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, Math.max((parseInt(item.adet) || 1) - 1, 1))}>−</button>
+                    <input type="number" className="sip-stepper-input" value={item.adet} min={1} max={99999}
+                      onChange={e => onAdetGuncelle(item.id, e.target.value)}
+                      onBlur={() => onAdetBlur(item.id)} />
+                    <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, (parseInt(item.adet) || 0) + 1)}>+</button>
                   </div>
                   <span className="sip-kalem-tutar">
                     {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : t.fiyat_sorulacak || '?'}

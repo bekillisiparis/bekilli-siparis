@@ -169,7 +169,8 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-stepper-btn { width: 32px; height: 32px; border: none; background: var(--sip-bg-subtle); color: var(--sip-text-muted); font-size: 15px; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: background .1s; }
 .sip-stepper-btn:hover { background: var(--sip-accent-bg); color: var(--sip-accent); }
 .sip-stepper-btn:active { background: var(--sip-accent-bg-hover); }
-.sip-stepper-val { min-width: 36px; text-align: center; font-size: 13px; font-weight: 600; color: var(--sip-text); padding: 0 4px; }
+.sip-stepper-input { width: 56px; text-align: center; font-size: 13px; font-weight: 600; color: var(--sip-text); padding: 4px 0; border: none; background: transparent; outline: none; font-family: inherit; -moz-appearance: textfield; }
+.sip-stepper-input::-webkit-outer-spin-button, .sip-stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .sip-kalem-tutar { flex: 1; font-size: 12px; font-weight: 500; color: var(--sip-text-dim); text-align: right; }
 .sip-kalem-sil { color: var(--sip-danger); cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 6px; border: none; background: none; font-family: inherit; transition: background .1s; flex-shrink: 0; }
 .sip-kalem-sil:hover { background: var(--sip-danger-bg); }
