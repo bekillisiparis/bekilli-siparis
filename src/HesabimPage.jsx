@@ -31,7 +31,7 @@ function faturaPdfAc(f, tlKur) {
 <style>body{font-family:system-ui,sans-serif;padding:32px;color:#1a1a1a}h2{margin:0 0 4px}
 table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0f1f5;font-size:11px;padding:8px;text-align:left;border-bottom:2px solid #d1d6e0}
 td{font-size:12px;border-bottom:1px solid #e8e8e8}.meta{font-size:12px;color:#666;margin:4px 0}
-.total{text-align:right;font-size:16px;font-weight:700;margin-top:12px}@media print{body{padding:16px}}</style></head>
+.total{text-align:right;font-size:16px;font-weight:600;margin-top:12px}@media print{body{padding:16px}}</style></head>
 <body><h2>Fatura: ${f.no || '—'}</h2>
 <div class="meta">Tarih: ${fmtD(f.tarih)}</div>
 <div class="meta">Toplam: $${fmt(f.tutar)}${tlKur > 0 ? ` (≈₺${fmt(f.tutar * tlKur, 0)})` : ''}</div>
@@ -164,21 +164,21 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
     <div className="sip-2panel">
       {/* ══ SOL PANEL: Bakiye + Faturalar ══ */}
       <div className="sip-panel">
-        {/* ── Bakiye Kartı ── */}
-        <div className="sip-bakiye">
+        {/* ── Bakiye Hero Kartı ── */}
+        <div className="sip-bakiye-hero">
           <div className="sip-bakiye-label">{t.bakiye}</div>
-          <div className={`sip-bakiye-net ${bakiye.net > 0.01 ? 'borc' : bakiye.net < -0.01 ? 'alacak' : 'sifir'}`}>
-            ${fmt(Math.abs(bakiye.net))}
+          <div className="sip-bakiye-head">
+            <span className="sip-bakiye-net">${fmt(Math.abs(bakiye.net))}</span>
+            {(bakiye.net > 0.01 || bakiye.net < -0.01) && (
+              <span className="sip-bakiye-badge">{bakiye.net > 0.01 ? t.borc_durumu : t.alacak_durumu}</span>
+            )}
           </div>
-          {tlKur > 0 ? (
-            <div className="sip-bakiye-doviz">
-              ≈ ₺{fmt(Math.abs(bakiye.net) * tlKur, 0)} <span style={{ fontSize: 9, opacity: 0.6 }}>($1 = ₺{fmt(tlKur, 2)})</span>
-            </div>
-          ) : (
-            <div className="sip-bakiye-doviz">
-              {bakiye.net > 0.01 ? t.borc_durumu : bakiye.net < -0.01 ? t.alacak_durumu : ''}
-            </div>
-          )}
+          <div className="sip-bakiye-doviz">
+            {tlKur > 0
+              ? <>≈ ₺{fmt(Math.abs(bakiye.net) * tlKur, 0)} <span className="sip-bakiye-kur">($1 = ₺{fmt(tlKur, 2)})</span></>
+              : (bakiye.net > 0.01 ? t.borc_durumu : bakiye.net < -0.01 ? t.alacak_durumu : '')
+            }
+          </div>
           <div className="sip-bakiye-row">
             <span>{t.toplam_borc}: ${fmt(bakiye.toplamBorc)}</span>
             <span>{t.toplam_alacak}: ${fmt(bakiye.toplamAlacak)}</span>
@@ -290,10 +290,8 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
 function DashboardView({ t, bildirimler, sonOdemeler, okunmamisSayisi, hesap, tlKur, onViewBildirimler, onViewOdemeler }) {
   return (
     <div>
-      <div className="sip-panel-title" style={{ fontSize: 14, fontWeight: 700 }}>Dashboard</div>
-
       {/* Son 5 Bildirim */}
-      <div className="sip-right-section">
+      <div className="sip-right-card">
         <div className="sip-section-title" style={{ cursor: 'pointer' }} onClick={onViewBildirimler}>
           <span>{t.bildirimler} {okunmamisSayisi > 0 && <span style={{ color: 'var(--sip-danger)', fontSize: 11 }}>({okunmamisSayisi} yeni)</span>}</span>
           <span style={{ fontSize: 11, color: 'var(--sip-accent)' }}>Tümü →</span>
@@ -311,7 +309,7 @@ function DashboardView({ t, bildirimler, sonOdemeler, okunmamisSayisi, hesap, tl
       </div>
 
       {/* Son 5 Ödeme */}
-      <div className="sip-right-section">
+      <div className="sip-right-card">
         <div className="sip-section-title" style={{ cursor: 'pointer' }} onClick={onViewOdemeler}>
           <span>{t.odemeler}</span>
           <span style={{ fontSize: 11, color: 'var(--sip-accent)' }}>Tümü →</span>
@@ -334,7 +332,7 @@ function DashboardView({ t, bildirimler, sonOdemeler, okunmamisSayisi, hesap, tl
       </div>
 
       {/* Harcama Trendi (6 ay) */}
-      <div className="sip-right-section">
+      <div className="sip-right-card">
         <div className="sip-section-title">Harcama Trendi</div>
         <TrendChart data={hesap.trendData} tlKur={tlKur} />
       </div>
@@ -403,12 +401,13 @@ function OdemelerView({ t, sonOdemeler, tlKur, onBack }) {
 
 // ── Fatura Card (açık + kapanan, accordion) ──────────
 function FaturaCard({ f, t, tlKur, isOpen, onToggle, kapali }) {
-  const gecikmeKlass = !kapali && f.gecikmeGun >= 30 ? 'sip-gecikme-kritik' : !kapali && f.gecikmeGun >= 7 ? 'sip-gecikme-uyari' : '';
+  const gecikmeKlass = !kapali && f.gecikmeGun >= 30 ? 'sip-gecikme-kritik' : !kapali && f.gecikmeGun >= 7 ? 'sip-gecikme-uyari' : !kapali && f.gecikmeGun > 0 ? 'sip-gecikme-yeni' : '';
+  const borderKlass = kapali ? 'sip-fatura-kapali' : f.gecikmeGun >= 30 ? 'sip-fatura-gecikme-kritik' : f.gecikmeGun >= 7 ? 'sip-fatura-gecikme-uyari' : 'sip-fatura-yeni';
   const progress = f.tutar > 0 ? Math.min(100, ((f.odenen || 0) / f.tutar) * 100) : 0;
 
   return (
     <div>
-      <div className={`sip-fatura ${kapali ? 'sip-fatura-kapali' : ''}`} onClick={onToggle} style={kapali ? { opacity: 0.75 } : undefined}>
+      <div className={`sip-fatura ${borderKlass}`} onClick={onToggle}>
         <div className="sip-fatura-header">
           <span className="sip-fatura-no">
             {f.no || '—'}
