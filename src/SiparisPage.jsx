@@ -334,6 +334,7 @@ function SearchAddBar({ katalog, placeholder, onAdd, onSelect }) {
 function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdetGuncelle, onAdetBlur, onNotGuncelle, onMuadilSwap, onEkle, onGonder, sikAlinanlar, showToast }) {
   const excelRef = useRef(null);
   const [excelBusy, setExcelBusy] = useState(false);
+  const [notOpenIds, setNotOpenIds] = useState(new Set());
 
   async function sablonIndir() {
     try {
@@ -419,25 +420,15 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
             const f = fiyatlar[item.urunKod];
             const satirToplam = f?.fiyat ? (parseInt(item.adet) || 0) * f.fiyat : null;
             const isMuadil = !!item._originalKod;
+            const hasNot = !!(item.not);
             return (
-              <div key={item.id} className={`sip-kalem-card${isMuadil ? ' sip-kalem-muadil' : ''}`}>
-                {/* Satır 1: Kod badge + Ad + Muadil badge */}
-                <div className="sip-kalem-top">
+              <div key={item.id} className={`sip-kalem-compact${isMuadil ? ' sip-kalem-muadil' : ''}`}>
+                {/* Ana satır: Kod + Ad + Badge + Stepper + Fiyat + Not toggle + Sil */}
+                <div className="sip-kalem-row-main">
                   <code className="sip-kalem-kod">{item.urunKod}</code>
-                  <span className="sip-kalem-ad">{item.urunAd}</span>
+                  {isMuadil && <span className="sip-badge sip-badge-muadil">M</span>}
                   {item.yeniUrunData && <span className="sip-badge sip-badge-hazir">NEW</span>}
-                  {isMuadil && <span className="sip-badge sip-badge-muadil">MUADIL</span>}
-                </div>
-                {/* Muadil: eski kod gösterimi */}
-                {isMuadil && (
-                  <div className="sip-kalem-swap-info">
-                    <span className="sip-kalem-swap-old">{item._originalKod}</span>
-                    <span className="sip-kalem-swap-arrow">&rarr;</span>
-                    <span className="sip-kalem-swap-new">{item.urunKod}</span>
-                  </div>
-                )}
-                {/* Satır 2: Stepper + Fiyat + Sil */}
-                <div className="sip-kalem-bottom">
+                  <span className="sip-kalem-ad">{item.urunAd}</span>
                   <div className="sip-stepper">
                     <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, Math.max((parseInt(item.adet) || 1) - 1, 1))}>−</button>
                     <input type="number" className="sip-stepper-input" value={item.adet} min={1} max={99999}
@@ -446,16 +437,29 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
                     <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, (parseInt(item.adet) || 0) + 1)}>+</button>
                   </div>
                   <span className="sip-kalem-tutar">
-                    {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : t.fiyat_sorulacak || '?'}
+                    {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '?'}
                   </span>
+                  <button className={`sip-kalem-not-toggle${hasNot ? ' has-not' : ''}`}
+                    onClick={() => setNotOpenIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
+                    title={t.not_placeholder || 'Not'}>
+                    {hasNot ? '\u270E' : '+'}
+                  </button>
                   <button className="sip-kalem-sil" onClick={() => onSil(item.id)}>&times;</button>
                 </div>
-                {/* Satır 3: Not */}
-                <input
-                  type="text" placeholder={t.not_placeholder || 'Not ekle...'} maxLength={500}
-                  value={item.not || ''} onChange={e => onNotGuncelle(item.id, e.target.value)}
-                  className="sip-kalem-not"
-                />
+                {/* Not alanı — tıkla-aç veya not varsa her zaman */}
+                {(notOpenIds.has(item.id) || hasNot) && (
+                  <input type="text" placeholder={t.not_placeholder || 'Not ekle...'} maxLength={500}
+                    value={item.not || ''} onChange={e => onNotGuncelle(item.id, e.target.value)}
+                    className="sip-kalem-not" autoFocus={notOpenIds.has(item.id) && !hasNot} />
+                )}
+                {/* Muadil: eski → yeni mini satır */}
+                {isMuadil && (
+                  <div className="sip-kalem-swap-line">
+                    <span className="sip-kalem-swap-old">{item._originalKod}</span>
+                    <span className="sip-kalem-swap-arrow">&rarr;</span>
+                    <span className="sip-kalem-swap-new">{item.urunKod}</span>
+                  </div>
+                )}
                 {/* Muadil önerisi: stokta yoksa aynı parcaNo stokta olanları göster */}
                 {(() => {
                   const u = katalog.find(x => x.kod === item.urunKod);
