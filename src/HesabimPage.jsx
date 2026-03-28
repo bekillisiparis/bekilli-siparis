@@ -488,6 +488,9 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
   // Progress bar (sadece açık)
   const progress = isAcik && f.tutar > 0 ? Math.min(100, ((f.odenen || 0) / f.tutar) * 100) : 0;
 
+  // Kalan tutar rengi = gecikme rengiyle uyumlu
+  const kalanRenk = isAcik ? (f.gecikmeGun >= 30 ? 'var(--sip-danger)' : f.gecikmeGun >= 7 ? 'var(--sip-orange)' : 'var(--sip-accent)') : null;
+
   return (
     <div>
       <div className={`sip-fatura ${borderKlass}`} onClick={onToggle}>
@@ -502,7 +505,7 @@ function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
             ? <span className="sip-iade-tutar">-${fmt(f.tutar)}</span>
             : isKapali
               ? <span className="sip-fatura-tutar-kapali">${fmt(f.tutar)}</span>
-              : <span className="sip-fatura-kalan">${fmt(f.kalan)}</span>
+              : <span className="sip-fatura-kalan" style={kalanRenk ? { color: kalanRenk } : undefined}>${fmt(f.kalan)}</span>
           }
         </div>
         <div className="sip-fatura-meta">
