@@ -99,8 +99,9 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 
 /* ── Top Nav ───────────────────────────────────────── */
 .sip-topnav { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 52px; background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.2); border-bottom: 1px solid var(--sip-border-light); flex-shrink: 0; }
-.sip-topnav-logo { font-size: 15px; font-weight: 600; color: var(--sip-text); display: flex; align-items: center; gap: 6px; }
+.sip-topnav-logo { font-size: 15px; font-weight: 600; color: var(--sip-text); display: flex; align-items: center; gap: 8px; }
 .sip-topnav-logo span { color: var(--sip-accent); }
+.sip-topnav-logo-img { height: 28px; object-fit: contain; }
 .sip-topnav-center { display: flex; gap: 0; }
 .sip-page-tab { padding: 12px 22px; font-size: 15px; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--sip-text-muted); border-bottom: 2px solid transparent; font-family: inherit; transition: all .15s; position: relative; }
 .sip-page-tab:hover:not(.active) { color: var(--sip-text); }
@@ -408,6 +409,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 [data-theme="dark"] .sip-login-container { background: linear-gradient(135deg, #030508 0%, #0A0E15 50%, #151B2B 100%); }
 [data-theme="dark"] .sip-login-card { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-topnav { background: rgba(6,8,16,0.85); backdrop-filter: blur(16px); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-topnav-logo-img { filter: brightness(1.8) contrast(0.9); }
 [data-theme="dark"] .sip-kat-panel { background: rgba(255,255,255,0.02); }
 [data-theme="dark"] .sip-panel { border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-acc-head { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
@@ -489,6 +491,8 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 /* ── Responsive — Mobile (<640px) ──────────────────── */
 @media (max-width: 640px) {
   .sip-topnav { padding: 0 12px; height: 44px; }
+  .sip-topnav-logo-img { height: 22px; }
+  .sip-topnav-logo { font-size: 13px; gap: 6px; }
   .sip-topnav-right .sip-logout-btn,
   .sip-topnav-right .sip-lang-toggle { display: none; }
   .sip-3panel { grid-template-columns: 1fr; }

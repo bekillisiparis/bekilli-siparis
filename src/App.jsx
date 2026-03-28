@@ -308,6 +308,7 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
       {/* ── Top Nav ── */}
       <nav className="sip-topnav">
         <div className="sip-topnav-logo">
+          <img src={BEKILLI_LOGO} alt="Bekilli Group" className="sip-topnav-logo-img" />
           <span>Bekilli</span> Group
         </div>
         <div className="sip-topnav-center">
