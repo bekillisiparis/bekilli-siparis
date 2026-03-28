@@ -421,36 +421,30 @@ function SepetPanel({ t, sepet, fiyatlar, katalog, filtered, busy, onSil, onAdet
             const satirToplam = f?.fiyat ? (parseInt(item.adet) || 0) * f.fiyat : null;
             const isMuadil = !!item._originalKod;
             const hasNot = !!(item.not);
+            const notAcik = notOpenIds.has(item.id) || hasNot;
             return (
               <div key={item.id} className={`sip-kalem-compact${isMuadil ? ' sip-kalem-muadil' : ''}`}>
-                {/* Ana satır: Kod + Ad + Badge + Stepper + Fiyat + Not toggle + Sil */}
-                <div className="sip-kalem-row-main">
+                {/* Ana satır: Kod + Badge + Ad + Adet input + Fiyat + Sil */}
+                <div className="sip-kalem-row-main" onClick={() => setNotOpenIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}>
                   <code className="sip-kalem-kod">{item.urunKod}</code>
                   {isMuadil && <span className="sip-badge sip-badge-muadil">M</span>}
                   {item.yeniUrunData && <span className="sip-badge sip-badge-hazir">NEW</span>}
                   <span className="sip-kalem-ad">{item.urunAd}</span>
-                  <div className="sip-stepper">
-                    <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, Math.max((parseInt(item.adet) || 1) - 1, 1))}>−</button>
-                    <input type="number" className="sip-stepper-input" value={item.adet} min={1} max={99999}
-                      onChange={e => onAdetGuncelle(item.id, e.target.value)}
-                      onBlur={() => onAdetBlur(item.id)} />
-                    <button className="sip-stepper-btn" onClick={() => onAdetGuncelle(item.id, (parseInt(item.adet) || 0) + 1)}>+</button>
-                  </div>
+                  <input type="number" className="sip-kalem-adet-input" value={item.adet} min={1} max={99999}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => onAdetGuncelle(item.id, e.target.value)}
+                    onBlur={() => onAdetBlur(item.id)} />
                   <span className="sip-kalem-tutar">
                     {satirToplam != null ? `${satirToplam.toLocaleString()} ${f.doviz || 'USD'}` : '?'}
                   </span>
-                  <button className={`sip-kalem-not-toggle${hasNot ? ' has-not' : ''}`}
-                    onClick={() => setNotOpenIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
-                    title={t.not_placeholder || 'Not'}>
-                    {hasNot ? '\u270E' : '+'}
-                  </button>
-                  <button className="sip-kalem-sil" onClick={() => onSil(item.id)}>&times;</button>
+                  <button className="sip-kalem-sil" onClick={e => { e.stopPropagation(); onSil(item.id); }}>&times;</button>
                 </div>
-                {/* Not alanı — tıkla-aç veya not varsa her zaman */}
-                {(notOpenIds.has(item.id) || hasNot) && (
+                {/* Not alanı — satıra tıklayınca açılır veya not varsa açık */}
+                {notAcik && (
                   <input type="text" placeholder={t.not_placeholder || 'Not ekle...'} maxLength={500}
                     value={item.not || ''} onChange={e => onNotGuncelle(item.id, e.target.value)}
-                    className="sip-kalem-not" autoFocus={notOpenIds.has(item.id) && !hasNot} />
+                    onClick={e => e.stopPropagation()}
+                    className="sip-kalem-not" autoFocus={!hasNot} />
                 )}
                 {/* Muadil: eski → yeni mini satır */}
                 {isMuadil && (

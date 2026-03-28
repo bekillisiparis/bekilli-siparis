@@ -158,25 +158,19 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 .sip-kalem-compact { border-bottom: 1px solid var(--sip-border-faint); transition: background .15s; }
 .sip-kalem-compact:last-child { border-bottom: none; }
 .sip-kalem-muadil { background: rgba(249,115,22,0.03); }
-.sip-kalem-row-main { display: flex; align-items: center; gap: 6px; padding: 7px 4px; }
+.sip-kalem-row-main { display: flex; align-items: center; gap: 6px; padding: 7px 4px; cursor: pointer; }
 .sip-kalem-kod { font-size: 10px; font-weight: 500; background: var(--sip-accent-bg); color: var(--sip-accent); padding: 2px 7px; border-radius: 5px; flex-shrink: 0; font-family: var(--sip-font); letter-spacing: 0.2px; }
 .sip-kalem-ad { font-size: 12px; font-weight: 500; color: var(--sip-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.sip-kalem-swap-line { padding: 0 4px 6px; font-size: 10px; color: var(--sip-text-faint); }
+.sip-kalem-adet-input { width: 44px; text-align: center; font-size: 12px; font-weight: 600; color: var(--sip-text); padding: 4px 2px; border: 1px solid var(--sip-border-light); border-radius: 6px; outline: none; background: var(--sip-bg-subtle); font-family: inherit; flex-shrink: 0; transition: border-color .15s; -moz-appearance: textfield; }
+.sip-kalem-adet-input:focus { border-color: var(--sip-accent); background: var(--sip-bg); }
+.sip-kalem-adet-input::-webkit-outer-spin-button, .sip-kalem-adet-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sip-kalem-tutar { font-size: 11px; font-weight: 500; color: var(--sip-text-dim); min-width: 50px; text-align: right; flex-shrink: 0; }
+.sip-kalem-sil { color: var(--sip-text-faint); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; border: none; background: none; font-family: inherit; transition: all .1s; flex-shrink: 0; }
+.sip-kalem-sil:hover { background: var(--sip-danger-bg); color: var(--sip-danger); }
+.sip-kalem-swap-line { padding: 0 4px 5px; font-size: 10px; color: var(--sip-text-faint); }
 .sip-kalem-swap-old { text-decoration: line-through; color: var(--sip-text-muted); }
 .sip-kalem-swap-arrow { margin: 0 4px; }
 .sip-kalem-swap-new { color: var(--sip-accent); font-weight: 500; }
-.sip-stepper { display: flex; align-items: center; border: 1px solid var(--sip-border-light); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
-.sip-stepper-btn { width: 28px; height: 28px; border: none; background: var(--sip-bg-subtle); color: var(--sip-text-muted); font-size: 13px; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: background .1s; }
-.sip-stepper-btn:hover { background: var(--sip-accent-bg); color: var(--sip-accent); }
-.sip-stepper-btn:active { background: var(--sip-accent-bg-hover); }
-.sip-stepper-input { width: 44px; text-align: center; font-size: 12px; font-weight: 600; color: var(--sip-text); padding: 4px 0; border: none; background: transparent; outline: none; font-family: inherit; -moz-appearance: textfield; }
-.sip-stepper-input::-webkit-outer-spin-button, .sip-stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.sip-kalem-tutar { font-size: 11px; font-weight: 500; color: var(--sip-text-dim); min-width: 50px; text-align: right; flex-shrink: 0; }
-.sip-kalem-not-toggle { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--sip-border-faint); background: transparent; color: var(--sip-text-faint); font-size: 12px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; font-family: inherit; }
-.sip-kalem-not-toggle:hover { border-color: var(--sip-accent); color: var(--sip-accent); }
-.sip-kalem-not-toggle.has-not { background: var(--sip-accent-bg); color: var(--sip-accent); border-color: var(--sip-accent); }
-.sip-kalem-sil { color: var(--sip-text-faint); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; border: none; background: none; font-family: inherit; transition: all .1s; flex-shrink: 0; }
-.sip-kalem-sil:hover { background: var(--sip-danger-bg); color: var(--sip-danger); }
 .sip-kalem-not { width: calc(100% - 8px); margin: 0 4px 6px; font-size: 12px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--sip-border-faint); background: var(--sip-bg-subtle); color: var(--sip-text); outline: none; font-family: inherit; transition: border-color .15s; }
 .sip-kalem-not:focus { border-color: var(--sip-accent); }
 .sip-kalem-not::placeholder { color: var(--sip-text-faint); }
@@ -416,7 +410,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 [data-theme="dark"] .sip-urun-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-form-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); backdrop-filter: blur(8px); }
 [data-theme="dark"] .sip-kalem-muadil { background: rgba(249,115,22,0.05); }
-[data-theme="dark"] .sip-stepper-btn { background: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sip-kalem-adet-input { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
 [data-theme="dark"] .sip-kalem-not { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-sepet-footer { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
 [data-theme="dark"] .sip-muadil-wrap { background: rgba(59,130,246,0.06); }
