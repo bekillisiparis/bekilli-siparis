@@ -3,7 +3,7 @@
 // 2 panel: Bakiye + Faturalar (sol 58%) + Dashboard Aktivite (sağ 42%)
 // Sağ panel: özet kartlar (5 bildirim + 5 ödeme) → tıklayınca tam geçmiş
 // ══════════════════════════════════════════════════════════════════════
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 const API = '/api/siparis';
 const fmt = (n, d = 2) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -207,9 +207,23 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
   const [rightView, setRightView] = useState('dashboard');
   // Portrait subtab: 'hesap' | 'aktivite'
   const [hesabimPanel, setHesabimPanel] = useState('hesap');
+  // Landscape detection
+  const [isLandscape, setIsLandscape] = useState(false);
+  // Landscape right panel: 'faturalar' | 'odeme-liste' | 'odeme-detay' | 'islem-liste' | 'islem-detay'
+  const [landDetail, setLandDetail] = useState('faturalar');
+  const [selectedItem, setSelectedItem] = useState(null);
   // Ekstre dönem
   const [ekstreBaslangic, setEkstreBaslangic] = useState('');
   const [ekstreBitis, setEkstreBitis] = useState('');
+
+  // Landscape matchMedia listener
+  useEffect(() => {
+    const mq = window.matchMedia('(max-height: 500px) and (orientation: landscape)');
+    const handler = (e) => { setIsLandscape(e.matches); if (!e.matches) setLandDetail('faturalar'); };
+    handler(mq);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Bildirim okundu
   const bildirimOkundu = useCallback(async (ids) => {
@@ -285,6 +299,37 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
           )}
         </div>
 
+        {/* ── Landscape: Mini Listeler (sol panel) ── */}
+        {isLandscape && (
+          <>
+            <div className="sip-section-title" style={{ marginTop: 8 }}>
+              <span>{t.son_odemeler || 'Son ödemeler'}</span>
+              <span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandDetail('odeme-liste')}>tümü →</span>
+            </div>
+            {sonOdemeler.slice(0, 3).map((o, i) => (
+              <div key={i} className={`sip-mini-item${landDetail === 'odeme-detay' && selectedItem?.i === i && selectedItem?.tip === 'odeme' ? ' sip-mini-sel' : ''}`}
+                onClick={() => { setSelectedItem({ ...o, i, tip: 'odeme' }); setLandDetail('odeme-detay'); }}>
+                <span style={{ fontSize: 11, fontWeight: 500 }}>${fmt(o.tutar)}</span>
+                <span style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtD(o.tarih)}</span>
+              </div>
+            ))}
+            <div className="sip-section-title" style={{ marginTop: 8 }}>
+              <span>{t.son_islemler || 'Son işlemler'}</span>
+              <span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandDetail('islem-liste')}>tümü →</span>
+            </div>
+            {[...acikFaturalar, ...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : -1).slice(0, 3).map((f, i) => (
+              <div key={i} className={`sip-mini-item${landDetail === 'islem-detay' && selectedItem?.i === i && selectedItem?.tip === 'islem' ? ' sip-mini-sel' : ''}`}
+                onClick={() => { setSelectedItem({ ...f, i, tip: 'islem' }); setLandDetail('islem-detay'); }}>
+                <span style={{ fontSize: 11, fontWeight: 500 }}>{f.no || 'Fatura'}</span>
+                <span style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>${fmt(f.tutar)}</span>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* ── Desktop/Portrait: Faturalar (sol panel) ── */}
+        {!isLandscape && (
+          <>
         {/* ── Fatura Sub-Tabs ── */}
         <div className="sip-subtabs">
           <button className={`sip-subtab ${faturaTab === 'acik' ? 'active' : ''}`} onClick={() => setFaturaTab('acik')}>
@@ -347,19 +392,142 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
           <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}
             onClick={() => ekstreExcelIndir([...acikFaturalar, ...kapananFaturalar], ekstreBaslangic, ekstreBitis, bakiye)}>Excel</button>
         </div>
+          </>
+        )}
       </div>
 
-      {/* ══ SAĞ PANEL: Dashboard Aktivite ══ */}
+      {/* ══ SAĞ PANEL ══ */}
       <div className="sip-panel">
-        {rightView === 'dashboard' ? (
-          <DashboardView t={t} bildirimler={bildirimler} sonOdemeler={sonOdemeler}
-            okunmamisSayisi={okunmamisSayisi} hesap={hesap} tlKur={tlKur}
-            onViewBildirimler={() => setRightView('bildirimler')} onViewOdemeler={() => setRightView('odemeler')} />
-        ) : rightView === 'bildirimler' ? (
-          <BildirimlerView t={t} bildirimler={bildirimler} okunmamisSayisi={okunmamisSayisi}
-            onOkundu={bildirimOkundu} onTumunuOkundu={tumunuOkundu} onBack={() => setRightView('dashboard')} />
+        {isLandscape ? (
+          landDetail === 'faturalar' ? (
+            <>
+              <div className="sip-subtabs">
+                <button className={`sip-subtab ${faturaTab === 'acik' ? 'active' : ''}`} onClick={() => setFaturaTab('acik')}>
+                  {t.acik_fatura}{acikFaturalar.length > 0 && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>({acikFaturalar.length})</span>}
+                </button>
+                {kapananFaturalar.length > 0 && (
+                  <button className={`sip-subtab ${faturaTab === 'kapanan' ? 'active' : ''}`} onClick={() => setFaturaTab('kapanan')}>Kapanan ({kapananFaturalar.length})</button>
+                )}
+              </div>
+              {faturaTab === 'acik' && (
+                acikFaturalar.length === 0 ? <div className="sip-empty">{t.fatura_yok}</div> : (
+                  [...acikFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
+                    <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur} tip="acik"
+                      isOpen={openFaturaId === f.no} onToggle={() => setOpenFaturaId(openFaturaId === f.no ? null : f.no)} />
+                  ))
+                )
+              )}
+              {faturaTab === 'kapanan' && (
+                kapananFaturalar.length === 0 ? <div className="sip-empty">Kapanan fatura yok</div> : (
+                  [...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
+                    <FaturaCard key={f.no || i} f={{ ...f, kalan: 0, odenen: f.tutar }} t={t} tlKur={tlKur} tip="kapanan"
+                      isOpen={openFaturaId === `k${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `k${f.no}` ? null : `k${f.no}`)} />
+                  ))
+                )
+              )}
+            </>
+          ) : landDetail === 'odeme-liste' ? (
+            <>
+              <div className="sip-section-title">
+                <span>{t.son_odemeler || 'Ödemeler'}</span>
+                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
+                  onClick={() => setLandDetail('faturalar')}>← {t.acik_fatura || 'Faturalar'}</button>
+              </div>
+              {sonOdemeler.map((o, i) => (
+                <div key={i} className="sip-mini-item" onClick={() => { setSelectedItem({ ...o, i, tip: 'odeme' }); setLandDetail('odeme-detay'); }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>${fmt(o.tutar)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtDLong(o.tarih)} {o.aciklama ? `— ${o.aciklama}` : ''}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--sip-success-text)' }}>✓</span>
+                </div>
+              ))}
+            </>
+          ) : landDetail === 'odeme-detay' && selectedItem ? (
+            <>
+              <div className="sip-section-title">
+                <span>{t.odeme_detay || 'Ödeme detayı'}</span>
+                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
+                  onClick={() => setLandDetail('odeme-liste')}>← {t.son_odemeler || 'Ödemeler'}</button>
+              </div>
+              <div style={{ background: 'var(--sip-bg)', border: '1px solid var(--sip-border-light)', borderRadius: 'var(--sip-r-sm)', padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>${fmt(selectedItem.tutar)}</span>
+                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'var(--sip-success-bg)', color: 'var(--sip-success-text)' }}>Tahsilat</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--sip-text-muted)', lineHeight: 1.8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tarih</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{fmtDLong(selectedItem.tarih)}</span></div>
+                  {selectedItem.aciklama && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Açıklama</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{selectedItem.aciklama}</span></div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Döviz</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{selectedItem.doviz || 'USD'}</span></div>
+                </div>
+              </div>
+            </>
+          ) : landDetail === 'islem-liste' ? (
+            <>
+              <div className="sip-section-title">
+                <span>{t.son_islemler || 'Son işlemler'}</span>
+                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
+                  onClick={() => setLandDetail('faturalar')}>← {t.acik_fatura || 'Faturalar'}</button>
+              </div>
+              {[...acikFaturalar, ...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : -1).map((f, i) => {
+                const gecRenk = f.gecikmeGun >= 30 ? 'var(--sip-danger)' : f.gecikmeGun >= 7 ? 'var(--sip-orange)' : 'var(--sip-accent)';
+                return (
+                  <div key={i} className="sip-mini-item" onClick={() => { setSelectedItem({ ...f, i, tip: 'islem' }); setLandDetail('islem-detay'); }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 500 }}>{f.no || 'Fatura'} — ${fmt(f.tutar)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtD(f.tarih)}</div>
+                    </div>
+                    {f.gecikmeGun > 0 && <span style={{ fontSize: 10, fontWeight: 500, color: gecRenk }}>{f.gecikmeGun}g</span>}
+                  </div>
+                );
+              })}
+            </>
+          ) : landDetail === 'islem-detay' && selectedItem ? (
+            <>
+              <div className="sip-section-title">
+                <span>{t.islem_detay || 'İşlem detayı'}</span>
+                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
+                  onClick={() => setLandDetail('islem-liste')}>← {t.son_islemler || 'İşlemler'}</button>
+              </div>
+              <div style={{ background: 'var(--sip-bg)', border: '1px solid var(--sip-border-light)', borderRadius: 'var(--sip-r-sm)', padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>${fmt(selectedItem.tutar)}</span>
+                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'var(--sip-accent-bg)', color: 'var(--sip-accent)' }}>Fatura</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--sip-text-muted)', lineHeight: 1.8 }}>
+                  {selectedItem.no && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Fatura no</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{selectedItem.no}</span></div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tarih</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{fmtDLong(selectedItem.tarih)}</span></div>
+                  {selectedItem.gecikmeGun > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gecikme</span><span style={{ color: selectedItem.gecikmeGun >= 30 ? 'var(--sip-danger)' : selectedItem.gecikmeGun >= 7 ? 'var(--sip-orange)' : 'var(--sip-accent)', fontWeight: 500 }}>{selectedItem.gecikmeGun} gün</span></div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Kalan</span><span style={{ color: 'var(--sip-danger)', fontWeight: 500 }}>${fmt(selectedItem.kalan || 0)}</span></div>
+                </div>
+              </div>
+              {Array.isArray(selectedItem.kalemler) && selectedItem.kalemler.length > 0 && (
+                <>
+                  <div className="sip-section-title" style={{ marginTop: 10 }}><span>Kalemler</span></div>
+                  {selectedItem.kalemler.map((k, ki) => (
+                    <div key={ki} className="sip-mini-item">
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 500 }}>{k.urunAd || k.urunKod || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{k.urunKod} — {k.adet}x</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 500 }}>${fmt(k.toplam)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          ) : null
         ) : (
-          <OdemelerView t={t} sonOdemeler={sonOdemeler} tlKur={tlKur} onBack={() => setRightView('dashboard')} />
+          rightView === 'dashboard' ? (
+            <DashboardView t={t} bildirimler={bildirimler} sonOdemeler={sonOdemeler}
+              okunmamisSayisi={okunmamisSayisi} hesap={hesap} tlKur={tlKur}
+              onViewBildirimler={() => setRightView('bildirimler')} onViewOdemeler={() => setRightView('odemeler')} />
+          ) : rightView === 'bildirimler' ? (
+            <BildirimlerView t={t} bildirimler={bildirimler} okunmamisSayisi={okunmamisSayisi}
+              onOkundu={bildirimOkundu} onTumunuOkundu={tumunuOkundu} onBack={() => setRightView('dashboard')} />
+          ) : (
+            <OdemelerView t={t} sonOdemeler={sonOdemeler} tlKur={tlKur} onBack={() => setRightView('dashboard')} />
+          )
         )}
       </div>
     </div>
