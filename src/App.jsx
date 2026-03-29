@@ -309,7 +309,6 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
       <nav className="sip-topnav">
         <div className="sip-topnav-logo">
           <img className="sip-topnav-logo-img" src={BEKILLI_LOGO_NAV} alt="Bekilli Group" />
-          <span>Bekilli</span> Group
         </div>
         <div className="sip-topnav-center">
           <button className={`sip-page-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
@@ -353,20 +352,6 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           siparisler={siparisler} refreshSiparisler={refreshSiparisler}
           showToast={showToast} sikAlinanlar={hesap?.sikAlinanlar || []}
         />
-      </div>
-
-      {/* ── Mobile Bottom Nav ── */}
-      <div className="sip-mobile-bar">
-        <button className={`sip-mobile-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
-          <AccountIcon />
-          <span>{t.hesabim}</span>
-          {okunmamisSayisi > 0 && <span className="sip-notif-dot" />}
-        </button>
-        <button className={`sip-mobile-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => changePage('siparis')}>
-          <OrderIcon />
-          <span>{t.siparis}</span>
-          {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
-        </button>
       </div>
 
       {/* Toast */}

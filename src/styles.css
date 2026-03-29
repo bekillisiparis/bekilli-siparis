@@ -522,7 +522,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-kat-panel { display: none; }
   .sip-panel:nth-child(3) { display: none; }
   .sip-2panel { grid-template-columns: 1fr; }
-  .sip-page { padding-bottom: 56px; }
+  .sip-page { padding-bottom: 0; }
   .sip-mobile-subtabs {
     display: flex; gap: 0; border-bottom: 1px solid var(--sip-border-light); margin-bottom: 8px;
   }
@@ -538,19 +538,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-search { font-size: 16px; padding: 10px 12px; }
   /* Zoom fix: iOS 16px altında otomatik yakınlaştırıyor */
   input, select, textarea { font-size: 16px !important; }
-
-  .sip-mobile-bar {
-    display: flex; align-items: center; justify-content: space-around;
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-    height: 52px; background: var(--sip-bg);
-    border-top: 1px solid var(--sip-border-light);
-    box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
-  }
-  .sip-mobile-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; border: none; background: none; cursor: pointer; color: var(--sip-text-muted); font-family: inherit; font-size: 10px; font-weight: 500; position: relative; }
-  .sip-mobile-tab.active { color: var(--sip-accent); }
-  .sip-mobile-tab svg { width: 20px; height: 20px; }
-  .sip-mobile-tab .sip-notif-dot { position: absolute; top: 2px; right: calc(50% - 14px); }
-  [data-theme="dark"] .sip-mobile-bar { background: rgba(10,14,21,0.95); border-color: rgba(255,255,255,0.08); }
+  .sip-page-tab { padding: 10px 16px; font-size: 14px; }
 }
 
 /* ── Responsive — Mobile Portrait Hesabim subtab ──── */
@@ -572,7 +560,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-topnav-logo-img { height: 18px; }
   .sip-topnav-logo span { display: none; }
   .sip-topnav-center { border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); overflow: hidden; display: inline-flex; }
-  .sip-page-tab { padding: 3px 12px; font-size: 11px; border-bottom: none; }
+  .sip-page-tab { padding: 4px 14px; font-size: 13px; border-bottom: none; }
   .sip-page-tab.active { background: var(--sip-accent); color: #fff; border-bottom: none; }
   .sip-topnav-right .sip-logout-btn { display: none; }
   .sip-topnav-right .sip-lang-toggle { display: none; }
@@ -581,7 +569,6 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-logout-icon { display: flex; padding: 3px; }
   .sip-logout-icon svg { width: 14px; height: 14px; }
   .sip-refresh { display: none; }
-  .sip-mobile-bar { display: none !important; }
   .sip-page { padding-bottom: 0; }
   .sip-panel { padding: 8px 10px; }
   .sip-2panel { grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); }
