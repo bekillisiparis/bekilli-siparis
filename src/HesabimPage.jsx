@@ -256,7 +256,7 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
 
   // ── Media query listeners ──
   useEffect(() => {
-    const mqL = window.matchMedia('(max-height: 500px) and (orientation: landscape)');
+    const mqL = window.matchMedia('(max-height: 500px) and (orientation: landscape) and (max-width: 1024px)');
     const mqD = window.matchMedia('(min-width: 1025px)');
     const hL = (e) => { setIsLandscape(e.matches); if (!e.matches) setRightView('faturalar'); };
     const hD = (e) => { setIsDesktop(e.matches); };
@@ -477,15 +477,15 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
 
   // ══ PORTRAIT LAYOUT (≤1024px, dikey) — 3-tab ══
   return (
-    <>
-      <div className="sip-hesabim-subtab">
-        <button className={mainTab === 'faturalar' ? 'active' : ''} onClick={() => setMainTab('faturalar')}>{t.faturalar || 'Faturalar'}</button>
-        <button className={mainTab === 'odemeler' ? 'active' : ''} onClick={() => setMainTab('odemeler')}>{t.odeme_tahsilat || 'Ödeme & Tahsilat'}</button>
-        <button className={mainTab === 'log' ? 'active' : ''} onClick={() => setMainTab('log')} style={{ position: 'relative' }}>Log{okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'absolute', top: 6, right: 8 }} />}</button>
-      </div>
-
       <div className="sip-2panel">
         <div className="sip-panel">
+          {/* ── 3 Tab Bar ── */}
+          <div className="sip-hesabim-subtab">
+            <button className={mainTab === 'faturalar' ? 'active' : ''} onClick={() => setMainTab('faturalar')}>{t.faturalar || 'Faturalar'}</button>
+            <button className={mainTab === 'odemeler' ? 'active' : ''} onClick={() => setMainTab('odemeler')}>{t.odeme_tahsilat || 'Ödeme & Tahsilat'}</button>
+            <button className={mainTab === 'log' ? 'active' : ''} onClick={() => setMainTab('log')} style={{ position: 'relative' }}>Log{okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'absolute', top: 6, right: 8 }} />}</button>
+          </div>
+
           {/* ── Bakiye Hero (dinamik renk) ── */}
           <div className={`sip-bakiye-hero ${hero.cls}`}>
             <div className="sip-bakiye-label">{t.bakiye}</div>
@@ -564,7 +564,6 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
         {/* Sağ panel gizli (portrait'te CSS ile gizleniyor) */}
         <div className="sip-panel" />
       </div>
-    </>
   );
 }
 

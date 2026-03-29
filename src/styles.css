@@ -554,7 +554,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
 }
 
 /* ── Responsive — Mobile Landscape ────────────────── */
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 1024px) {
   .sip-topnav { height: 36px; padding: 0 10px; }
   .sip-topnav-logo { font-size: 12px; gap: 4px; }
   .sip-topnav-logo-img { height: 18px; }
@@ -662,7 +662,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-export-btn { font-size: 10px; padding: 6px 0; }
   .sip-fat-subtab { font-size: 10px; padding: 6px 0; }
 }
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 1024px) {
   .sip-perf-row { gap: 4px; margin-bottom: 6px; }
   .sip-perf-card { padding: 4px; }
   .sip-perf-num { font-size: 11px; }
