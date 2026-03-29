@@ -387,7 +387,14 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
   if (isWideLayout) {
     return (
       <div className="sip-2panel">
-        {/* ── Sol panel: bakiye + hesap hareketleri + son işlemler ── */}
+        {/* ── Sol panel (%64): faturalar / tüm ödemeler / tüm işlemler ── */}
+        <div className="sip-panel">
+          {rightView === 'faturalar' && faturaContent}
+          {rightView === 'tum-odemeler' && tumOdemelerContent}
+          {rightView === 'tum-islemler' && tumIslemlerContent}
+        </div>
+
+        {/* ── Sağ panel (%36): bakiye + hesap hareketleri + son işlemler ── */}
         <div className="sip-panel" style={{ overflow: isLandscape ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
           <div className={`sip-bakiye-hero ${hero.cls}`} style={isLandscape ? { padding: '10px 12px', marginBottom: 6, flexShrink: 0 } : { flexShrink: 0 }}>
             {isLandscape ? (
@@ -418,7 +425,7 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
             )}
           </div>
 
-          {/* Hesap hareketleri (son ödemeler) */}
+          {/* Hesap hareketleri */}
           <div className="sip-section-title" style={{ marginBottom: 4 }}>
             <span>{t.hesap_hareketleri || 'Hesap hareketleri'}</span>
             <span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setRightView('tum-odemeler')}>Tümü →</span>
@@ -436,7 +443,7 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
             );
           })}
 
-          {/* Son işlemler (sadece desktop, landscape'te log bar) */}
+          {/* Son işlemler */}
           {isLandscape ? (
             <div className="sip-land-tlbar" onClick={() => setRightView('tum-islemler')}>
               <span className="sip-land-tlbar-dot" /> {t.son_islemler || 'Son işlemler'}
@@ -463,13 +470,6 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
           )}
 
           {isLandscape && <div style={{ fontSize: 9, color: 'var(--sip-text-faint)', textAlign: 'center', marginTop: 'auto', padding: 2 }}>scroll kilitli</div>}
-        </div>
-
-        {/* ── Sağ panel: faturalar (default) / tüm ödemeler / tüm işlemler ── */}
-        <div className="sip-panel">
-          {rightView === 'faturalar' && faturaContent}
-          {rightView === 'tum-odemeler' && tumOdemelerContent}
-          {rightView === 'tum-islemler' && tumIslemlerContent}
         </div>
       </div>
     );
