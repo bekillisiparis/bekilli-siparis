@@ -205,6 +205,8 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
   const [openFaturaId, setOpenFaturaId] = useState(null);
   // Sağ panel: 'dashboard' | 'bildirimler' | 'odemeler'
   const [rightView, setRightView] = useState('dashboard');
+  // Portrait subtab: 'hesap' | 'aktivite'
+  const [hesabimPanel, setHesabimPanel] = useState('hesap');
   // Ekstre dönem
   const [ekstreBaslangic, setEkstreBaslangic] = useState('');
   const [ekstreBitis, setEkstreBitis] = useState('');
@@ -242,7 +244,16 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
   const tlKur = hesap.kurlar?.USDTRY || hesap.kurlar?.usdTry || 0;
 
   return (
-    <div className="sip-2panel">
+    <>
+      {/* ── Portrait subtab (Hesap / Aktivite) ── */}
+      <div className="sip-hesabim-subtab">
+        <button className={hesabimPanel === 'hesap' ? 'active' : ''} onClick={() => setHesabimPanel('hesap')}>{t.hesabim}</button>
+        <button className={hesabimPanel === 'aktivite' ? 'active' : ''} onClick={() => { setHesabimPanel('aktivite'); setRightView('dashboard'); }}>
+          {t.aktivite || 'Aktivite'}
+          {okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'relative', top: -4, right: -2 }} />}
+        </button>
+      </div>
+      <div className={`sip-2panel${hesabimPanel === 'aktivite' ? ' sip-show-right' : ''}`}>
       {/* ══ SOL PANEL: Bakiye + Faturalar ══ */}
       <div className="sip-panel">
         {/* ── Bakiye Hero Kartı ── */}
@@ -352,6 +363,7 @@ export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalo
         )}
       </div>
     </div>
+    </>
   );
 }
 
