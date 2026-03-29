@@ -4,13 +4,12 @@
 // İş mantığı sayfalarda, burada sadece auth + routing + topnav
 // ══════════════════════════════════════════════════════════════════════
 import { useState, useReducer, useEffect, useRef, useCallback } from 'react';
+import { BEKILLI_LOGO, BEKILLI_LOGO_NAV } from './logos';
 import SiparisPage from './SiparisPage';
 import HesabimPage from './HesabimPage';
 
 // ── API ─────────────────────────────────────────────
 const API = '/api/siparis';
-const BEKILLI_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAjYAAAEsCAYAAADQE/lVAABoMUlEQVR42u3deXxdR3k38N8zM+fcRZZXyVkIW0hewGF3gLBFkuPYsmM7bNfsSymFlrXstNdeX2iBskNLaUMpBVoW31KI7cTyKt1AwmrSUmJ2KCSExJZ36S7nzMzz/nHOlWVbsmVtluzn+/mIJNiWdc/MOed35sw8AwghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCiAvH/w8hcxJNPMo1kAAAAABJRU5ErkJggg==";
-
 // ── API Helper ──────────────────────────────────────
 async function apiCall(url, pin, body) {
   const opts = { headers: {} };
@@ -44,7 +43,7 @@ function extractFiyatlar(raw) {
 // ── Dil ─────────────────────────────────────────────
 const LANG = {
   tr: {
-    siparis: 'Sipariş', hesabim: 'Hesabım', cikis: 'Çıkış', yenile: 'Yenile', portal: 'Sipariş Portalı',
+    siparis: 'Sipariş', hesabim: 'Hesabım', aktivite: 'Aktivite', cikis: 'Çıkış', yenile: 'Yenile', portal: 'Sipariş Portalı',
     pin_sub: 'Sipariş portalına giriş yapın', pin_placeholder: '6 haneli PIN', pin_btn: 'Giriş',
     pin_error: 'Geçersiz PIN veya bağlantı hatası', yukleniyor: 'Giriş yapılıyor...',
     oturumu_ac: 'Oturumu açık tut', oto_cikis: '15 dk hareketsizlikte otomatik çıkış',
@@ -71,7 +70,7 @@ const LANG = {
     tumunu_oku: 'Tümünü okundu yap', hesap_bos: 'Hesap bilgisi henüz oluşturulmadı.',
   },
   en: {
-    siparis: 'Order', hesabim: 'Account', cikis: 'Logout', yenile: 'Refresh', portal: 'Order Portal',
+    siparis: 'Order', hesabim: 'Account', aktivite: 'Activity', cikis: 'Logout', yenile: 'Refresh', portal: 'Order Portal',
     pin_sub: 'Login to order portal', pin_placeholder: '6-digit PIN', pin_btn: 'Login',
     pin_error: 'Invalid PIN or connection error', yukleniyor: 'Logging in...',
     oturumu_ac: 'Keep me signed in', oto_cikis: 'Auto-logout after 15 min of inactivity',
@@ -135,7 +134,7 @@ export default function App() {
   const setLang = useCallback((v) => dispatch({ type: "SET_LANG", v: typeof v === 'function' ? v(lang) : v }), [lang]);
   const setKeepSession = useCallback((v) => { dispatch({ type: "SET_KEEP_SESSION", v }); localStorage.setItem('sip_keep_session', v ? '1' : '0'); }, []);
 
-  useEffect(() => { fetch(API).catch(e => console.warn('Preheat:', e.message)); if(typeof __BUILD_TIME__!=='undefined') console.log('🏗️ Portal build:', __BUILD_TIME__); }, []);
+  useEffect(() => { fetch(API).catch(e => console.warn('Preheat:', e.message)); if(typeof __BUILD_TIME__!=='undefined') console.log('Build:', __BUILD_TIME__); }, []);
   useEffect(() => { localStorage.setItem('sip_lang', lang); }, [lang]);
   useEffect(() => {
     localStorage.setItem('sip_theme', theme);
@@ -302,13 +301,14 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
 
   const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi' || s.durum === 'hazirlaniyor').length;
   const okunmamisSayisi = (hesap?.bildirimler || []).filter(b => !b.okundu).length;
+  const shortName = (musteri.ad || '').split(' ').map((w, i) => i === 0 ? w : w[0] + '.').join(' ');
 
   return (
     <div className="sip-app">
-      {/* ── Top Nav ── */}
+      {/* ── Top Nav (3-zone symmetric grid) ── */}
       <nav className="sip-topnav">
         <div className="sip-topnav-logo">
-          <span>Bekilli</span> Group
+          <img className="sip-topnav-logo-img" src={BEKILLI_LOGO_NAV} alt="Bekilli Group" />
         </div>
         <div className="sip-topnav-center">
           <button className={`sip-page-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
@@ -321,10 +321,15 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           </button>
         </div>
         <div className="sip-topnav-right">
-          <span className="sip-topnav-user">{musteri.ad}</span>
+          <span className="sip-topnav-user">{shortName}</span>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
           <LangToggle lang={lang} setLang={setLang} />
           <button className="sip-logout-btn" onClick={onLogout}>{t.cikis}</button>
+          <button className="sip-logout-icon" onClick={onLogout} title={t.cikis}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
       </nav>
 
@@ -332,7 +337,6 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
       <div className="sip-refresh">
         <span>{sonYenileme ? sonYenileme.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : "—"}</span>
         <button className="sip-refresh-btn" onClick={refreshSiparisler} title={t.yenile}>↻</button>
-        {typeof __BUILD_TIME__ !== 'undefined' && <span style={{ fontSize: 9, opacity: 0.35, marginLeft: 6 }}>b:{new Date(__BUILD_TIME__).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span>}
       </div>
 
       {/* ── Pages ── */}
@@ -348,20 +352,6 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           siparisler={siparisler} refreshSiparisler={refreshSiparisler}
           showToast={showToast} sikAlinanlar={hesap?.sikAlinanlar || []}
         />
-      </div>
-
-      {/* ── Mobile Bottom Nav ── */}
-      <div className="sip-mobile-bar">
-        <button className={`sip-mobile-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
-          <AccountIcon />
-          <span>{t.hesabim}</span>
-          {okunmamisSayisi > 0 && <span className="sip-notif-dot" />}
-        </button>
-        <button className={`sip-mobile-tab ${page === 'siparis' ? 'active' : ''}`} onClick={() => changePage('siparis')}>
-          <OrderIcon />
-          <span>{t.siparis}</span>
-          {bekleyenSayisi > 0 && <span className="sip-notif-dot" />}
-        </button>
       </div>
 
       {/* Toast */}
