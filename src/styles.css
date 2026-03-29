@@ -547,6 +547,48 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   [data-theme="dark"] .sip-mobile-bar { background: rgba(10,14,21,0.95); border-color: rgba(255,255,255,0.08); }
 }
 
+/* ── Responsive — Mobile Portrait Hesabim subtab ──── */
+@media (max-width: 640px) and (orientation: portrait) {
+  .sip-hesabim-subtab { display: flex; border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); overflow: hidden; margin: 0 0 10px; }
+  .sip-hesabim-subtab button { flex: 1; text-align: center; font-size: 12px; padding: 8px 0; border: none; background: var(--sip-bg); color: var(--sip-text-muted); font-family: inherit; font-weight: 500; cursor: pointer; transition: all .15s; }
+  .sip-hesabim-subtab button.active { background: var(--sip-accent); color: #fff; }
+  .sip-2panel .sip-panel:nth-child(2) { display: none; }
+  .sip-2panel.sip-show-right .sip-panel:nth-child(1) { display: none; }
+  .sip-2panel.sip-show-right .sip-panel:nth-child(2) { display: block; }
+  .sip-fatura { min-height: 48px; display: flex; flex-direction: column; justify-content: center; }
+  .sip-fatura-action { min-height: 44px; padding: 8px 16px; font-size: 12px; }
+}
+
+/* ── Responsive — Mobile Landscape ────────────────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sip-topnav { height: 36px; padding: 0 10px; }
+  .sip-topnav-logo { font-size: 12px; gap: 4px; }
+  .sip-topnav-logo-img { height: 18px; }
+  .sip-topnav-center { display: none; }
+  .sip-topnav-right .sip-logout-btn,
+  .sip-topnav-right .sip-lang-toggle { display: none; }
+  .sip-refresh { display: none; }
+  .sip-mobile-bar { display: none !important; }
+  .sip-page { padding-bottom: 0; }
+  .sip-panel { padding: 8px 10px; }
+  .sip-2panel { grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); }
+  .sip-3panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .sip-kat-panel { display: none; }
+  .sip-panel:nth-child(3) { display: none; }
+  .sip-hesabim-subtab { display: none; }
+  .sip-landscape-tabs { display: inline-flex !important; border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); overflow: hidden; margin: 0; }
+  .sip-landscape-tabs button { text-align: center; font-size: 11px; padding: 3px 10px; border: none; background: var(--sip-bg); color: var(--sip-text-muted); font-family: inherit; font-weight: 500; cursor: pointer; transition: all .12s; }
+  .sip-landscape-tabs button.active { background: var(--sip-accent); color: #fff; }
+  .sip-fatura { padding: 6px 10px; margin-bottom: 4px; }
+  .sip-fatura-no { font-size: 11px; }
+  .sip-fatura-kalan { font-size: 12px; }
+  .sip-fatura-meta { font-size: 9px; gap: 6px; }
+  .sip-section-title { font-size: 12px; margin-bottom: 6px; }
+  .sip-panel-title { font-size: 13px; margin-bottom: 8px; }
+}
+.sip-landscape-tabs { display: none; }
+.sip-hesabim-subtab { display: none; }
+
 /* ── Animations ────────────────────────────────────── */
 @keyframes sip-toast-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes sip-slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
