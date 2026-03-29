@@ -10,7 +10,6 @@ import HesabimPage from './HesabimPage';
 
 // ── API ─────────────────────────────────────────────
 const API = '/api/siparis';
-
 // ── API Helper ──────────────────────────────────────
 async function apiCall(url, pin, body) {
   const opts = { headers: {} };
@@ -44,7 +43,7 @@ function extractFiyatlar(raw) {
 // ── Dil ─────────────────────────────────────────────
 const LANG = {
   tr: {
-    siparis: 'Sipariş', hesabim: 'Hesabım', cikis: 'Çıkış', yenile: 'Yenile', portal: 'Sipariş Portalı',
+    siparis: 'Sipariş', hesabim: 'Hesabım', aktivite: 'Aktivite', cikis: 'Çıkış', yenile: 'Yenile', portal: 'Sipariş Portalı',
     pin_sub: 'Sipariş portalına giriş yapın', pin_placeholder: '6 haneli PIN', pin_btn: 'Giriş',
     pin_error: 'Geçersiz PIN veya bağlantı hatası', yukleniyor: 'Giriş yapılıyor...',
     oturumu_ac: 'Oturumu açık tut', oto_cikis: '15 dk hareketsizlikte otomatik çıkış',
@@ -65,13 +64,13 @@ const LANG = {
     toplam_borc: 'Borç', toplam_alacak: 'Alacak',
     acik_fatura: 'Açık Faturalar', fatura_kisa: 'fatura', fatura_yok: 'Açık fatura yok',
     odenen: 'Ödenen', gun: 'gün',
-    iade_alacak: 'İade Alacakları', iade_kisa: 'İade', iade: 'İade / Alış',
+    iade_alacak: 'İade Alacakları', iade_kisa: 'iade', iade: 'İade',
     bildirimler: 'Bildirimler', odemeler: 'Ödemeler', sik_alinanlar: 'Sık Alınanlar',
     bildirim_yok: 'Bildirim yok', odeme_yok: 'Ödeme geçmişi yok',
     tumunu_oku: 'Tümünü okundu yap', hesap_bos: 'Hesap bilgisi henüz oluşturulmadı.',
   },
   en: {
-    siparis: 'Order', hesabim: 'Account', cikis: 'Logout', yenile: 'Refresh', portal: 'Order Portal',
+    siparis: 'Order', hesabim: 'Account', aktivite: 'Activity', cikis: 'Logout', yenile: 'Refresh', portal: 'Order Portal',
     pin_sub: 'Login to order portal', pin_placeholder: '6-digit PIN', pin_btn: 'Login',
     pin_error: 'Invalid PIN or connection error', yukleniyor: 'Logging in...',
     oturumu_ac: 'Keep me signed in', oto_cikis: 'Auto-logout after 15 min of inactivity',
@@ -89,7 +88,7 @@ const LANG = {
     toplam_borc: 'Debt', toplam_alacak: 'Credit',
     acik_fatura: 'Open Invoices', fatura_kisa: 'invoices', fatura_yok: 'No open invoices',
     odenen: 'Paid', gun: 'days',
-    iade_alacak: 'Return Credits', iade_kisa: 'Return', iade: 'Return / Purchase',
+    iade_alacak: 'Return Credits', iade_kisa: 'returns', iade: 'Return',
     bildirimler: 'Notifications', odemeler: 'Payments', sik_alinanlar: 'Frequently Ordered',
     bildirim_yok: 'No notifications', odeme_yok: 'No payment history',
     tumunu_oku: 'Mark all read', hesap_bos: 'Account info not available yet.',
@@ -302,13 +301,15 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
 
   const bekleyenSayisi = siparisler.filter(s => s.durum === 'beklemede' || s.durum === 'kismi' || s.durum === 'hazirlaniyor').length;
   const okunmamisSayisi = (hesap?.bildirimler || []).filter(b => !b.okundu).length;
+  const shortName = (musteri.ad || '').split(' ').map((w, i) => i === 0 ? w : w[0] + '.').join(' ');
 
   return (
     <div className="sip-app">
-      {/* ── Top Nav ── */}
+      {/* ── Top Nav (3-zone symmetric grid) ── */}
       <nav className="sip-topnav">
         <div className="sip-topnav-logo">
-          <img src={BEKILLI_LOGO_NAV} alt="Bekilli Group" className="sip-topnav-logo-img" />
+          <img className="sip-topnav-logo-img" src={BEKILLI_LOGO_NAV} alt="Bekilli Group" />
+          <span>Bekilli</span> Group
         </div>
         <div className="sip-topnav-center">
           <button className={`sip-page-tab ${page === 'hesabim' ? 'active' : ''}`} onClick={() => changePage('hesabim')}>
@@ -321,10 +322,15 @@ function MainApp({ t, lang, setLang, theme, toggleTheme, pin, musteri, katalog, 
           </button>
         </div>
         <div className="sip-topnav-right">
-          <span className="sip-topnav-user">{musteri.ad}</span>
+          <span className="sip-topnav-user">{shortName}</span>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
           <LangToggle lang={lang} setLang={setLang} />
           <button className="sip-logout-btn" onClick={onLogout}>{t.cikis}</button>
+          <button className="sip-logout-icon" onClick={onLogout} title={t.cikis}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
       </nav>
 
