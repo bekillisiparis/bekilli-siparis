@@ -387,14 +387,7 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
   if (isWideLayout) {
     return (
       <div className="sip-2panel">
-        {/* ── Sol panel (%64): faturalar / tüm ödemeler / tüm işlemler ── */}
-        <div className="sip-panel">
-          {rightView === 'faturalar' && faturaContent}
-          {rightView === 'tum-odemeler' && tumOdemelerContent}
-          {rightView === 'tum-islemler' && tumIslemlerContent}
-        </div>
-
-        {/* ── Sağ panel (%36): bakiye + hesap hareketleri + son işlemler ── */}
+        {/* ── Sol panel (%36): bakiye + hesap hareketleri + son işlemler ── */}
         <div className="sip-panel" style={{ overflow: isLandscape ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
           <div className={`sip-bakiye-hero ${hero.cls}`} style={isLandscape ? { padding: '10px 12px', marginBottom: 6, flexShrink: 0 } : { flexShrink: 0 }}>
             {isLandscape ? (
@@ -470,6 +463,13 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
           )}
 
           {isLandscape && <div style={{ fontSize: 9, color: 'var(--sip-text-faint)', textAlign: 'center', marginTop: 'auto', padding: 2 }}>scroll kilitli</div>}
+        </div>
+
+        {/* ── Sağ panel (%64): faturalar / tüm ödemeler / tüm işlemler ── */}
+        <div className="sip-panel">
+          {rightView === 'faturalar' && faturaContent}
+          {rightView === 'tum-odemeler' && tumOdemelerContent}
+          {rightView === 'tum-islemler' && tumIslemlerContent}
         </div>
       </div>
     );
