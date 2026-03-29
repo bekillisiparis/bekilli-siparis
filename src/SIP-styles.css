@@ -572,9 +572,7 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-page { padding-bottom: 0; }
   .sip-panel { padding: 8px 10px; }
   .sip-2panel { grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); }
-  .sip-3panel { grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); }
-  .sip-3panel > .sip-panel:nth-child(2) { order: 2; }
-  .sip-3panel > .sip-panel:nth-child(3) { order: 1; }
+  .sip-3panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .sip-kat-panel { display: none; }
   .sip-hesabim-subtab { display: none; }
   .sip-mobile-subtabs { display: none; }
