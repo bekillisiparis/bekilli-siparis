@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════════════
-// Bekilli Group — Portal v4 App Shell
-// 2 sayfa: Sipariş (3 panel) + Hesabım (2 panel)
+// Bekilli Group — Portal v5 App Shell
+// 2 sayfa: Sipariş (3 panel) + Hesabım (3 tab: Faturalar/Ödeme&Tahsilat/Log)
 // İş mantığı sayfalarda, burada sadece auth + routing + topnav
 // ══════════════════════════════════════════════════════════════════════
 import { useState, useReducer, useEffect, useRef, useCallback } from 'react';
@@ -66,6 +66,9 @@ const LANG = {
     odenen: 'Ödenen', gun: 'gün',
     iade_alacak: 'İade Alacakları', iade_kisa: 'iade', iade: 'İade',
     bildirimler: 'Bildirimler', odemeler: 'Ödemeler', sik_alinanlar: 'Sık Alınanlar',
+    faturalar: 'Faturalar', odeme_tahsilat: 'Ödeme & Tahsilat',
+    son_odemeler: 'Son ödemeler', son_islemler: 'Son işlemler',
+    acik_fatura_yok: 'Açık fatura bulunmuyor', iade_yok: 'İade bulunmuyor',
     bildirim_yok: 'Bildirim yok', odeme_yok: 'Ödeme geçmişi yok',
     tumunu_oku: 'Tümünü okundu yap', hesap_bos: 'Hesap bilgisi henüz oluşturulmadı.',
   },
@@ -90,6 +93,9 @@ const LANG = {
     odenen: 'Paid', gun: 'days',
     iade_alacak: 'Return Credits', iade_kisa: 'returns', iade: 'Return',
     bildirimler: 'Notifications', odemeler: 'Payments', sik_alinanlar: 'Frequently Ordered',
+    faturalar: 'Invoices', odeme_tahsilat: 'Payment & Collection',
+    son_odemeler: 'Recent payments', son_islemler: 'Recent transactions',
+    acik_fatura_yok: 'No open invoices', iade_yok: 'No returns',
     bildirim_yok: 'No notifications', odeme_yok: 'No payment history',
     tumunu_oku: 'Mark all read', hesap_bos: 'Account info not available yet.',
   },

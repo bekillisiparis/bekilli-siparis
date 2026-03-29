@@ -1,9 +1,10 @@
 // ══════════════════════════════════════════════════════════════════════
-// Bekilli Group — Portal v4.2: HesabimPage
-// 2 panel: Bakiye + Faturalar (sol 58%) + Dashboard Aktivite (sağ 42%)
-// Sağ panel: özet kartlar (5 bildirim + 5 ödeme) → tıklayınca tam geçmiş
+// Bekilli Group — Portal v5: HesabimPage
+// 3 tab: Faturalar (açık/kapanan/iade) · Ödeme & Tahsilat · Log
+// Dinamik bakiye hero rengi (ödeme oranına göre)
+// Portrait: 3-tab + subtab | Landscape: sol sabit + sağ scroll
 // ══════════════════════════════════════════════════════════════════════
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 const API = '/api/siparis';
 const fmt = (n, d = 2) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -199,456 +200,301 @@ function filterByDate(faturalar, baslangic, bitis) {
   });
 }
 
-// ── HesabimPage ─────────────────────────────────────
-export default function HesabimPage({ t, hesap, pin, onRefresh, fiyatlar, katalog }) {
-  const [faturaTab, setFaturaTab] = useState('acik');
+// ── Hero renk & badge hesabı ────────────────────────
+function heroStyle(bakiye) {
+  const borc = bakiye?.toplamBorc || 0;
+  const alacak = bakiye?.toplamAlacak || 0;
+  const pct = borc > 0 ? Math.round((alacak / borc) * 100) : 100;
+  if (pct >= 85) return { cls: 'sip-hero-green', badge: 'İyi durumda', pct };
+  if (pct >= 50) return { cls: 'sip-hero-purple', badge: 'Düzenli', pct };
+  if (pct >= 25) return { cls: 'sip-hero-amber', badge: 'Takipte', pct };
+  return { cls: 'sip-hero-red', badge: 'Ödeme bekleniyor', pct };
+}
+
+// ── Timeline builder ────────────────────────────────
+function buildTimeline(hesap) {
+  const items = [];
+  (hesap.acikFaturalar || []).forEach(f => items.push({ tarih: f.tarih, tip: 'fatura', msg: `Fatura ${f.no || ''}`, sub: `$${fmt(f.tutar)} · ${(f.kalemler || []).length} kalem · açık`, dotCls: 'sip-tl-fill', msgCls: '' }));
+  (hesap.kapananFaturalar || []).forEach(f => items.push({ tarih: f.tarih, tip: 'fatura', msg: `Fatura ${f.no || ''}`, sub: `$${fmt(f.tutar)} · kapandı`, dotCls: 'sip-tl-fill', msgCls: '' }));
+  (hesap.bekleyenIadeler || []).forEach(f => items.push({ tarih: f.tarih, tip: 'iade', msg: `İade ${f.no || ''}`, sub: `$${fmt(f.tutar)} · ${f.aciklama || 'beklemede'}`, dotCls: 'sip-tl-amber', msgCls: 'sip-tl-msg-amber' }));
+  (hesap.sonOdemeler || []).forEach(o => {
+    const isTah = o.tip !== 'mahsup' && o.tip !== 'iade_kredisi';
+    const eslCnt = (o.eslesmeler || []).length;
+    items.push({ tarih: o.tarih, tip: 'odeme', msg: `${isTah ? 'Tahsilat' : 'İade kredisi'} — ${o.yontem || ''}`, sub: `$${fmt(o.tutar)}${eslCnt > 0 ? ` · ${eslCnt} fatura kapattı` : ''}`, dotCls: isTah ? 'sip-tl-green' : 'sip-tl-blue', msgCls: isTah ? 'sip-tl-msg-green' : 'sip-tl-msg-blue' });
+  });
+  (hesap.bildirimler || []).forEach(b => items.push({ tarih: b.tarih, tip: 'bildirim', msg: b.mesaj || 'Bildirim', sub: '', dotCls: b.mesaj?.includes('ipariş') ? 'sip-tl-blue' : 'sip-tl-amber', msgCls: b.mesaj?.includes('ipariş') ? 'sip-tl-msg-blue' : 'sip-tl-msg-amber' }));
+  (hesap.sipariGecmisi || []).forEach(s => items.push({ tarih: s.tarih, tip: 'siparis', msg: 'Sipariş onaylandı', sub: `${(s.kalemler || []).length} kalem · $${fmt(s.toplamTutar)}`, dotCls: 'sip-tl-blue', msgCls: 'sip-tl-msg-blue' }));
+  items.sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
+  return items;
+}
+
+// ── Aging hesabı ────────────────────────────────────
+function calcAging(acikFaturalar) {
+  let a0 = 0, a1 = 0, a2 = 0;
+  (acikFaturalar || []).forEach(f => {
+    const g = f.gecikmeGun || 0;
+    const k = f.kalan || f.tutar || 0;
+    if (g >= 30) a2 += k; else if (g >= 7) a1 += k; else a0 += k;
+  });
+  return { a0, a1, a2 };
+}
+
+// ══════════════════════════════════════════════════════
+// HesabimPage v5 — Main Component
+// ══════════════════════════════════════════════════════
+export default function HesabimPage({ t, hesap, pin, onRefresh }) {
+  const [mainTab, setMainTab] = useState('faturalar');
+  const [faturaSubTab, setFaturaSubTab] = useState('acik');
   const [openFaturaId, setOpenFaturaId] = useState(null);
-  // Sağ panel: 'dashboard' | 'bildirimler' | 'odemeler'
-  const [rightView, setRightView] = useState('dashboard');
-  // Portrait subtab: 'hesap' | 'aktivite'
-  const [hesabimPanel, setHesabimPanel] = useState('hesap');
-  // Landscape detection
+  const [openOdemeId, setOpenOdemeId] = useState(null);
   const [isLandscape, setIsLandscape] = useState(false);
-  // Landscape right panel: 'faturalar' | 'odeme-liste' | 'odeme-detay' | 'islem-liste' | 'islem-detay'
-  const [landDetail, setLandDetail] = useState('faturalar');
-  const [selectedItem, setSelectedItem] = useState(null);
-  // Ekstre dönem
+  const [landView, setLandView] = useState('faturalar');
   const [ekstreBaslangic, setEkstreBaslangic] = useState('');
   const [ekstreBitis, setEkstreBitis] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Landscape matchMedia listener
   useEffect(() => {
     const mq = window.matchMedia('(max-height: 500px) and (orientation: landscape)');
-    const handler = (e) => { setIsLandscape(e.matches); if (!e.matches) setLandDetail('faturalar'); };
+    const handler = (e) => { setIsLandscape(e.matches); if (!e.matches) setLandView('faturalar'); };
     handler(mq);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Bildirim okundu
   const bildirimOkundu = useCallback(async (ids) => {
     if (!pin || !ids?.length) return;
     try {
-      await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Siparis-PIN': pin },
-        body: JSON.stringify({ islem: 'bildirim_okundu', bildirimIds: ids }),
-      });
+      await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Siparis-PIN': pin }, body: JSON.stringify({ islem: 'bildirim_okundu', bildirimIds: ids }) });
       if (onRefresh) onRefresh();
     } catch (e) { console.warn('Bildirim okundu hatası:', e.message); }
   }, [pin, onRefresh]);
 
-  const tumunuOkundu = useCallback(() => {
-    const okunmamis = (hesap?.bildirimler || []).filter(b => !b.okundu).map(b => b.id);
-    if (okunmamis.length > 0) bildirimOkundu(okunmamis);
-  }, [hesap, bildirimOkundu]);
-
   if (!hesap || !hesap.bakiye) {
+    return (<div className="sip-2panel"><div className="sip-panel"><div className="sip-empty">{t.hesap_bos}</div></div><div className="sip-panel" /></div>);
+  }
+
+  const { bakiye, acikFaturalar = [], sonOdemeler = [], bildirimler = [], kapananFaturalar = [], bekleyenIadeler = [] } = hesap;
+  const tlKur = hesap.kurlar?.USDTRY || hesap.kurlar?.usdTry || 0;
+  const okunmamisSayisi = bildirimler.filter(b => !b.okundu).length;
+  const hero = heroStyle(bakiye);
+  const aging = calcAging(acikFaturalar);
+  const allFaturalar = [...acikFaturalar, ...kapananFaturalar, ...bekleyenIadeler];
+  const timeline = useMemo(() => buildTimeline(hesap), [hesap]);
+  const odemeOrani = hero.pct;
+  const ortOdemeSuresi = useMemo(() => {
+    const geciken = acikFaturalar.filter(f => f.gecikmeGun > 0);
+    if (geciken.length === 0) return 0;
+    return Math.round(geciken.reduce((s, f) => s + f.gecikmeGun, 0) / geciken.length);
+  }, [acikFaturalar]);
+
+  const toggleFatura = (id) => setOpenFaturaId(prev => prev === id ? null : id);
+  const toggleOdeme = (id) => setOpenOdemeId(prev => prev === id ? null : id);
+
+  // ══ LANDSCAPE LAYOUT ══
+  if (isLandscape) {
     return (
       <div className="sip-2panel">
-        <div className="sip-panel"><div className="sip-empty">{t.hesap_bos}</div></div>
-        <div className="sip-panel" />
+        <div className="sip-panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className={`sip-bakiye-hero ${hero.cls}`} style={{ padding: '10px 12px', marginBottom: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span className="sip-bakiye-net" style={{ fontSize: 18 }}>${fmt(Math.abs(bakiye.net))}</span>
+              <span style={{ fontSize: 9, opacity: 0.8 }}>%{hero.pct}</span>
+            </div>
+            <div style={{ fontSize: 9, opacity: 0.7 }}>{t.bakiye}</div>
+          </div>
+          <div className="sip-section-title" style={{ marginBottom: 4 }}>
+            <span>{t.son_odemeler || 'Son ödemeler'}</span>
+            <span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandView('odemeler')}>tümü →</span>
+          </div>
+          {sonOdemeler.slice(0, 3).map((o, i) => (
+            <div key={i} className="sip-mini-item" onClick={() => setLandView('odemeler')}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span className="sip-legend-dot" style={{ width: 6, height: 6, background: o.tip === 'mahsup' || o.tip === 'iade_kredisi' ? '#378ADD' : '#1D9E75' }} />
+                <span style={{ fontSize: 11, fontWeight: 500 }}>${fmt(o.tutar)}</span>
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtD(o.tarih)}</span>
+            </div>
+          ))}
+          <div className="sip-land-tlbar" onClick={() => setLandView('log')}>
+            <span className="sip-land-tlbar-dot" /> Log / Timeline
+            {okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'relative', top: -2 }} />}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--sip-text-faint)', textAlign: 'center', marginTop: 'auto', padding: 2 }}>scroll kilitli</div>
+        </div>
+        <div className="sip-panel">
+          {landView === 'faturalar' ? (
+            <>
+              <div className="sip-section-title"><span>{t.acik_fatura} ({acikFaturalar.length})</span><span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandView('odemeler')}>{t.odemeler} →</span></div>
+              {acikFaturalar.map(f => <FaturaCard key={f.no || f.faturaId} f={f} t={t} tlKur={tlKur} isOpen={openFaturaId === (f.faturaId || f.no)} onToggle={() => toggleFatura(f.faturaId || f.no)} tip="acik" />)}
+              {kapananFaturalar.length > 0 && (<><div className="sip-section-title" style={{ marginTop: 8 }}><span>Kapanan ({kapananFaturalar.length})</span></div>{kapananFaturalar.map(f => <FaturaCard key={f.no} f={f} t={t} tlKur={tlKur} isOpen={openFaturaId === f.no} onToggle={() => toggleFatura(f.no)} tip="kapanan" />)}</>)}
+              {bekleyenIadeler.length > 0 && (<><div className="sip-section-title" style={{ marginTop: 8 }}><span>{t.iade || 'İade'} ({bekleyenIadeler.length})</span></div>{bekleyenIadeler.map(f => <FaturaCard key={f.no} f={f} t={t} tlKur={tlKur} isOpen={openFaturaId === f.no} onToggle={() => toggleFatura(f.no)} tip="iade" />)}</>)}
+            </>
+          ) : landView === 'odemeler' ? (
+            <>
+              <div className="sip-section-title"><span>{t.odemeler} & Tahsilatlar</span><span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandView('faturalar')}>← Faturalar</span></div>
+              <div className="sip-legend"><span><span className="sip-legend-dot" style={{ background: '#1D9E75' }} />Tahsilat</span><span><span className="sip-legend-dot" style={{ background: '#378ADD' }} />İade kredisi</span></div>
+              {sonOdemeler.map((o, i) => { const isTah = o.tip !== 'mahsup' && o.tip !== 'iade_kredisi'; return (<div key={i}><div className={`sip-pay-item${isTah ? '' : ' sip-pay-iade'}`} onClick={() => toggleOdeme(`l${i}`)}><div><div style={{ fontSize: 12, fontWeight: 500 }}>{fmtD(o.tarih)}</div><div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{o.yontem || '—'}</div></div><span style={{ fontSize: 13, fontWeight: 500, color: isTah ? '#1D9E75' : '#378ADD' }}>${fmt(o.tutar)}</span></div>{openOdemeId === `l${i}` && Array.isArray(o.eslesmeler) && o.eslesmeler.length > 0 && (<div className={`sip-pay-detail ${isTah ? 'sip-pay-tah' : 'sip-pay-iade-d'}`}>{o.eslesmeler.map((e, ei) => <div key={ei}>{e.faturaNo} — ${fmt(e.kapatilan)}</div>)}</div>)}</div>); })}
+            </>
+          ) : (
+            <>
+              <div className="sip-section-title"><span>Log / Timeline</span><span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandView('faturalar')}>← Faturalar</span></div>
+              <div className="sip-timeline">{timeline.slice(0, 15).map((item, i) => (<div key={i} className="sip-tl-item"><div className={`sip-tl-dot ${item.dotCls}`} />{i < timeline.length - 1 && <div className="sip-tl-line" />}<div className="sip-tl-date">{fmtD(item.tarih)}</div><div className={`sip-tl-msg ${item.msgCls}`}>{item.msg}</div>{item.sub && <div className="sip-tl-sub">{item.sub}</div>}</div>))}</div>
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
-  const { bakiye, acikFaturalar = [], sonOdemeler = [], sikAlinanlar = [], bildirimler = [], kapananFaturalar = [], bekleyenIadeler = [] } = hesap;
-  const okunmamisSayisi = bildirimler.filter(b => !b.okundu).length;
-  const acikToplam = acikFaturalar.reduce((s, f) => s + (f.kalan || 0), 0);
-  const tlKur = hesap.kurlar?.USDTRY || hesap.kurlar?.usdTry || 0;
-
+  // ══ PORTRAIT / DESKTOP LAYOUT ══
   return (
     <>
-      {/* ── Portrait subtab (Hesap / Aktivite) ── */}
-      <div className="sip-hesabim-subtab">
-        <button className={hesabimPanel === 'hesap' ? 'active' : ''} onClick={() => setHesabimPanel('hesap')}>{t.hesabim}</button>
-        <button className={hesabimPanel === 'aktivite' ? 'active' : ''} onClick={() => { setHesabimPanel('aktivite'); setRightView('dashboard'); }}>
-          {t.aktivite || 'Aktivite'}
-          {okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'relative', top: -4, right: -2 }} />}
-        </button>
-      </div>
-      <div className={`sip-2panel${hesabimPanel === 'aktivite' ? ' sip-show-right' : ''}`}>
-      {/* ══ SOL PANEL: Bakiye + Faturalar ══ */}
-      <div className="sip-panel">
-        {/* ── Bakiye Hero Kartı ── */}
-        <div className="sip-bakiye-hero">
-          <div className="sip-bakiye-label">{t.bakiye}</div>
-          <div className="sip-bakiye-head">
-            <span className="sip-bakiye-net">${fmt(Math.abs(bakiye.net))}</span>
-            {(bakiye.net > 0.01 || bakiye.net < -0.01) && (
-              <span className="sip-bakiye-badge">{bakiye.net > 0.01 ? t.borc_durumu : t.alacak_durumu}</span>
-            )}
-          </div>
-          <div className="sip-bakiye-doviz">
-            {tlKur > 0
-              ? <>≈ ₺{fmt(Math.abs(bakiye.net) * tlKur, 0)} <span className="sip-bakiye-kur">($1 = ₺{fmt(tlKur, 2)})</span></>
-              : (bakiye.net > 0.01 ? t.borc_durumu : bakiye.net < -0.01 ? t.alacak_durumu : '')
-            }
-          </div>
-          <div className="sip-bakiye-row">
-            <span>{t.toplam_borc}: ${fmt(bakiye.toplamBorc)}</span>
-            <span>{t.toplam_alacak}: ${fmt(bakiye.toplamAlacak)}</span>
-          </div>
-          {bakiye.toplamBorc > 0 && (
-            <>
-              <div className="sip-bakiye-bar">
-                <div className="sip-bakiye-bar-fill" style={{ width: `${Math.min(100, ((bakiye.toplamAlacak || 0) / bakiye.toplamBorc) * 100)}%` }} />
-              </div>
-              <div className="sip-bakiye-pct">%{Math.round(((bakiye.toplamAlacak || 0) / bakiye.toplamBorc) * 100)} ödendi</div>
-            </>
-          )}
-        </div>
-
-        {/* ── Landscape: Mini Listeler (sol panel) ── */}
-        {isLandscape && (
-          <>
-            <div className="sip-section-title" style={{ marginTop: 8 }}>
-              <span>{t.son_odemeler || 'Son ödemeler'}</span>
-              <span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandDetail('odeme-liste')}>tümü →</span>
-            </div>
-            {sonOdemeler.slice(0, 3).map((o, i) => (
-              <div key={i} className={`sip-mini-item${landDetail === 'odeme-detay' && selectedItem?.i === i && selectedItem?.tip === 'odeme' ? ' sip-mini-sel' : ''}`}
-                onClick={() => { setSelectedItem({ ...o, i, tip: 'odeme' }); setLandDetail('odeme-detay'); }}>
-                <span style={{ fontSize: 11, fontWeight: 500 }}>${fmt(o.tutar)}</span>
-                <span style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtD(o.tarih)}</span>
-              </div>
-            ))}
-            <div className="sip-section-title" style={{ marginTop: 8 }}>
-              <span>{t.son_islemler || 'Son işlemler'}</span>
-              <span style={{ fontSize: 10, color: 'var(--sip-accent)', cursor: 'pointer' }} onClick={() => setLandDetail('islem-liste')}>tümü →</span>
-            </div>
-            {[...acikFaturalar, ...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : -1).slice(0, 3).map((f, i) => (
-              <div key={i} className={`sip-mini-item${landDetail === 'islem-detay' && selectedItem?.i === i && selectedItem?.tip === 'islem' ? ' sip-mini-sel' : ''}`}
-                onClick={() => { setSelectedItem({ ...f, i, tip: 'islem' }); setLandDetail('islem-detay'); }}>
-                <span style={{ fontSize: 11, fontWeight: 500 }}>{f.no || 'Fatura'}</span>
-                <span style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>${fmt(f.tutar)}</span>
-              </div>
-            ))}
-          </>
-        )}
-
-        {/* ── Desktop/Portrait: Faturalar (sol panel) ── */}
-        {!isLandscape && (
-          <>
-        {/* ── Fatura Sub-Tabs ── */}
-        <div className="sip-subtabs">
-          <button className={`sip-subtab ${faturaTab === 'acik' ? 'active' : ''}`} onClick={() => setFaturaTab('acik')}>
-            {t.acik_fatura}{acikFaturalar.length > 0 && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>({acikFaturalar.length})</span>}
-          </button>
-          {kapananFaturalar.length > 0 && (
-            <button className={`sip-subtab ${faturaTab === 'kapanan' ? 'active' : ''}`} onClick={() => setFaturaTab('kapanan')}>Kapanan ({kapananFaturalar.length})</button>
-          )}
-          {bekleyenIadeler.length > 0 && (
-            <button className={`sip-subtab ${faturaTab === 'iade' ? 'active' : ''}`} onClick={() => setFaturaTab('iade')}>{t.iade} ({bekleyenIadeler.length})</button>
-          )}
-        </div>
-
-        {/* ── Açık Faturalar ── */}
-        {faturaTab === 'acik' && (
-          <>
-            {acikFaturalar.length > 0 && (
-              <div className="sip-section-title">
-                <span>{acikFaturalar.length} {t.fatura_kisa}</span>
-                <span className="sip-section-sum">${fmt(acikToplam)}{tlKur > 0 && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.6 }}>≈₺{fmt(acikToplam * tlKur, 0)}</span>}</span>
-              </div>
-            )}
-            {acikFaturalar.length === 0 ? <div className="sip-empty">{t.fatura_yok}</div> : (
-              [...acikFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
-                <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur} tip="acik"
-                  isOpen={openFaturaId === f.no} onToggle={() => setOpenFaturaId(openFaturaId === f.no ? null : f.no)} />
-              ))
-            )}
-          </>
-        )}
-
-        {/* ── Kapanan Faturalar ── */}
-        {faturaTab === 'kapanan' && (
-          kapananFaturalar.length === 0 ? <div className="sip-empty">Kapanan fatura yok</div> : (
-            [...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
-              <FaturaCard key={f.no || i} f={{ ...f, kalan: 0, odenen: f.tutar }} t={t} tlKur={tlKur} tip="kapanan"
-                isOpen={openFaturaId === `k${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `k${f.no}` ? null : `k${f.no}`)} />
-            ))
-          )
-        )}
-
-        {/* ── Bekleyen İadeler ── */}
-        {faturaTab === 'iade' && (
-          bekleyenIadeler.length === 0 ? <div className="sip-empty">İade yok</div> : (
-            bekleyenIadeler.map((f, i) => (
-              <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur} tip="iade"
-                isOpen={openFaturaId === `i${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `i${f.no}` ? null : `i${f.no}`)} />
-            ))
-          )
-        )}
-
-        {/* ── Ekstre İndirme (dönem seçimli) ── */}
-        <div className="sip-ekstre">
-          <span style={{ fontSize: 11, color: 'var(--sip-text-muted)', fontWeight: 600 }}>Ekstre:</span>
-          <input type="date" value={ekstreBaslangic} onChange={e => setEkstreBaslangic(e.target.value)} className="sip-input" style={{ width: 130, fontSize: 11 }} />
-          <span style={{ fontSize: 11, color: 'var(--sip-text-faint)' }}>—</span>
-          <input type="date" value={ekstreBitis} onChange={e => setEkstreBitis(e.target.value)} className="sip-input" style={{ width: 130, fontSize: 11 }} />
-          <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}
-            onClick={() => ekstrePdfAc([...acikFaturalar, ...kapananFaturalar], ekstreBaslangic, ekstreBitis, bakiye, tlKur)}>PDF</button>
-          <button className="sip-btn sip-btn-secondary" style={{ fontSize: 10 }}
-            onClick={() => ekstreExcelIndir([...acikFaturalar, ...kapananFaturalar], ekstreBaslangic, ekstreBitis, bakiye)}>Excel</button>
-        </div>
-          </>
-        )}
+      <div className="sip-hesabim-subtab" style={{ display: 'flex' }}>
+        <button className={mainTab === 'faturalar' ? 'active' : ''} onClick={() => setMainTab('faturalar')}>{t.faturalar || 'Faturalar'}</button>
+        <button className={mainTab === 'odemeler' ? 'active' : ''} onClick={() => setMainTab('odemeler')}>{t.odeme_tahsilat || 'Ödeme & Tahsilat'}</button>
+        <button className={mainTab === 'log' ? 'active' : ''} onClick={() => setMainTab('log')} style={{ position: 'relative' }}>Log{okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'absolute', top: 6, right: 8 }} />}</button>
       </div>
 
-      {/* ══ SAĞ PANEL ══ */}
-      <div className="sip-panel">
-        {isLandscape ? (
-          landDetail === 'faturalar' ? (
+      <div className="sip-2panel">
+        <div className="sip-panel">
+          {/* ── Bakiye Hero (dinamik renk) ── */}
+          <div className={`sip-bakiye-hero ${hero.cls}`}>
+            <div className="sip-bakiye-label">{t.bakiye}</div>
+            <div className="sip-bakiye-head">
+              <span className="sip-bakiye-net">${fmt(Math.abs(bakiye.net))}</span>
+              {(bakiye.net > 0.01 || bakiye.net < -0.01) && <span className="sip-bakiye-badge">{bakiye.net > 0.01 ? t.borc_durumu : t.alacak_durumu}</span>}
+            </div>
+            <div className="sip-bakiye-doviz">
+              {tlKur > 0 ? <>≈ ₺{fmt(Math.abs(bakiye.net) * tlKur, 0)} <span className="sip-bakiye-kur">($1 = ₺{fmt(tlKur, 2)})</span></> : (bakiye.net > 0.01 ? t.borc_durumu : bakiye.net < -0.01 ? t.alacak_durumu : '')}
+            </div>
+            <div className="sip-bakiye-row">
+              <span>{t.toplam_borc}: ${fmt(bakiye.toplamBorc)}</span>
+              <span>{t.toplam_alacak}: ${fmt(bakiye.toplamAlacak)}</span>
+            </div>
+            {bakiye.toplamBorc > 0 && (<><div className="sip-bakiye-bar"><div className="sip-bakiye-bar-fill" style={{ width: `${Math.min(100, hero.pct)}%` }} /></div><div className="sip-bakiye-pct">%{hero.pct} ödendi</div></>)}
+            <div className="sip-hero-status">{hero.badge}</div>
+          </div>
+
+          {/* ── FATURALAR TAB ── */}
+          {mainTab === 'faturalar' && (
             <>
-              <div className="sip-subtabs">
-                <button className={`sip-subtab ${faturaTab === 'acik' ? 'active' : ''}`} onClick={() => setFaturaTab('acik')}>
-                  {t.acik_fatura}{acikFaturalar.length > 0 && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>({acikFaturalar.length})</span>}
-                </button>
-                {kapananFaturalar.length > 0 && (
-                  <button className={`sip-subtab ${faturaTab === 'kapanan' ? 'active' : ''}`} onClick={() => setFaturaTab('kapanan')}>Kapanan ({kapananFaturalar.length})</button>
-                )}
+              <div className="sip-export-bar">
+                <button className="sip-export-btn" onClick={() => ekstrePdfAc(allFaturalar, ekstreBaslangic, ekstreBitis, bakiye, tlKur)}>Komple ekstre</button>
+                <button className="sip-export-btn" onClick={() => ekstreExcelIndir(allFaturalar, ekstreBaslangic, ekstreBitis, bakiye)}>Excel</button>
+                <button className="sip-export-btn" onClick={() => setShowDatePicker(!showDatePicker)}>Tarih seç</button>
               </div>
-              {faturaTab === 'acik' && (
-                acikFaturalar.length === 0 ? <div className="sip-empty">{t.fatura_yok}</div> : (
-                  [...acikFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
-                    <FaturaCard key={f.no || i} f={f} t={t} tlKur={tlKur} tip="acik"
-                      isOpen={openFaturaId === f.no} onToggle={() => setOpenFaturaId(openFaturaId === f.no ? null : f.no)} />
-                  ))
-                )
+              {showDatePicker && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                  <input type="date" value={ekstreBaslangic} onChange={e => setEkstreBaslangic(e.target.value)} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 12, color: 'var(--sip-text-muted)' }}>—</span>
+                  <input type="date" value={ekstreBitis} onChange={e => setEkstreBitis(e.target.value)} style={{ flex: 1 }} />
+                </div>
               )}
-              {faturaTab === 'kapanan' && (
-                kapananFaturalar.length === 0 ? <div className="sip-empty">Kapanan fatura yok</div> : (
-                  [...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : b.tarih < a.tarih ? -1 : (b.no || '').localeCompare(a.no || '')).map((f, i) => (
-                    <FaturaCard key={f.no || i} f={{ ...f, kalan: 0, odenen: f.tutar }} t={t} tlKur={tlKur} tip="kapanan"
-                      isOpen={openFaturaId === `k${f.no}`} onToggle={() => setOpenFaturaId(openFaturaId === `k${f.no}` ? null : `k${f.no}`)} />
-                  ))
-                )
+              {(aging.a0 > 0 || aging.a1 > 0 || aging.a2 > 0) && (
+                <div className="sip-aging">
+                  <div className="sip-aging-seg sip-aging-ok">0-7g: ${fmt(aging.a0, 0)}</div>
+                  <div className="sip-aging-seg sip-aging-warn">7-30g: ${fmt(aging.a1, 0)}</div>
+                  <div className="sip-aging-seg sip-aging-danger">30+g: ${fmt(aging.a2, 0)}</div>
+                </div>
               )}
+              <div className="sip-fat-subtabs">
+                <button className={`sip-fat-subtab ${faturaSubTab === 'acik' ? 'active' : ''}`} onClick={() => { setFaturaSubTab('acik'); setOpenFaturaId(null); }}>Açık ({acikFaturalar.length})</button>
+                <button className={`sip-fat-subtab ${faturaSubTab === 'kapanan' ? 'active' : ''}`} onClick={() => { setFaturaSubTab('kapanan'); setOpenFaturaId(null); }}>Kapanan ({kapananFaturalar.length})</button>
+                <button className={`sip-fat-subtab ${faturaSubTab === 'iade' ? 'active' : ''}`} onClick={() => { setFaturaSubTab('iade'); setOpenFaturaId(null); }}>{t.iade || 'İade'} ({bekleyenIadeler.length})</button>
+              </div>
+              {faturaSubTab === 'acik' && acikFaturalar.map(f => <FaturaCard key={f.no || f.faturaId} f={f} t={t} tlKur={tlKur} isOpen={openFaturaId === (f.faturaId || f.no)} onToggle={() => toggleFatura(f.faturaId || f.no)} tip="acik" />)}
+              {faturaSubTab === 'acik' && acikFaturalar.length === 0 && <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '12px 0' }}>{t.acik_fatura_yok || 'Açık fatura bulunmuyor'}</div>}
+              {faturaSubTab === 'kapanan' && kapananFaturalar.map(f => <FaturaCard key={f.no} f={f} t={t} tlKur={tlKur} isOpen={openFaturaId === f.no} onToggle={() => toggleFatura(f.no)} tip="kapanan" />)}
+              {faturaSubTab === 'kapanan' && kapananFaturalar.length === 0 && <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '12px 0' }}>Kapanan fatura bulunmuyor</div>}
+              {faturaSubTab === 'iade' && bekleyenIadeler.map(f => <FaturaCard key={f.no} f={f} t={t} tlKur={tlKur} isOpen={openFaturaId === f.no} onToggle={() => toggleFatura(f.no)} tip="iade" />)}
+              {faturaSubTab === 'iade' && bekleyenIadeler.length === 0 && <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '12px 0' }}>{t.iade_yok || 'İade bulunmuyor'}</div>}
             </>
-          ) : landDetail === 'odeme-liste' ? (
+          )}
+
+          {/* ── ÖDEME & TAHSİLAT TAB ── */}
+          {mainTab === 'odemeler' && (
             <>
-              <div className="sip-section-title">
-                <span>{t.son_odemeler || 'Ödemeler'}</span>
-                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
-                  onClick={() => setLandDetail('faturalar')}>← {t.acik_fatura || 'Faturalar'}</button>
+              <div className="sip-perf-row">
+                <div className="sip-perf-card"><div className="sip-perf-num" style={{ color: '#1D9E75' }}>%{odemeOrani}</div><div className="sip-perf-label">Ödeme oranı</div></div>
+                <div className="sip-perf-card"><div className="sip-perf-num">{ortOdemeSuresi}g</div><div className="sip-perf-label">Ort. gecikme</div></div>
+                <div className="sip-perf-card"><div className="sip-perf-num" style={{ color: bakiye.net > 0 ? '#E24B4A' : '#1D9E75' }}>${fmt(Math.abs(bakiye.net), 0)}</div><div className="sip-perf-label">Kalan borç</div></div>
               </div>
-              {sonOdemeler.map((o, i) => (
-                <div key={i} className="sip-mini-item" onClick={() => { setSelectedItem({ ...o, i, tip: 'odeme' }); setLandDetail('odeme-detay'); }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 500 }}>${fmt(o.tutar)}</div>
-                    <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtDLong(o.tarih)} {o.aciklama ? `— ${o.aciklama}` : ''}</div>
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--sip-success-text)' }}>✓</span>
-                </div>
-              ))}
-            </>
-          ) : landDetail === 'odeme-detay' && selectedItem ? (
-            <>
-              <div className="sip-section-title">
-                <span>{t.odeme_detay || 'Ödeme detayı'}</span>
-                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
-                  onClick={() => setLandDetail('odeme-liste')}>← {t.son_odemeler || 'Ödemeler'}</button>
-              </div>
-              <div style={{ background: 'var(--sip-bg)', border: '1px solid var(--sip-border-light)', borderRadius: 'var(--sip-r-sm)', padding: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <span style={{ fontSize: 16, fontWeight: 600 }}>${fmt(selectedItem.tutar)}</span>
-                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'var(--sip-success-bg)', color: 'var(--sip-success-text)' }}>Tahsilat</span>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--sip-text-muted)', lineHeight: 1.8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tarih</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{fmtDLong(selectedItem.tarih)}</span></div>
-                  {selectedItem.aciklama && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Açıklama</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{selectedItem.aciklama}</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Döviz</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{selectedItem.doviz || 'USD'}</span></div>
-                </div>
-              </div>
-            </>
-          ) : landDetail === 'islem-liste' ? (
-            <>
-              <div className="sip-section-title">
-                <span>{t.son_islemler || 'Son işlemler'}</span>
-                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
-                  onClick={() => setLandDetail('faturalar')}>← {t.acik_fatura || 'Faturalar'}</button>
-              </div>
-              {[...acikFaturalar, ...kapananFaturalar].sort((a, b) => b.tarih > a.tarih ? 1 : -1).map((f, i) => {
-                const gecRenk = f.gecikmeGun >= 30 ? 'var(--sip-danger)' : f.gecikmeGun >= 7 ? 'var(--sip-orange)' : 'var(--sip-accent)';
+              <div className="sip-right-card" style={{ marginBottom: 10 }}><div className="sip-section-title" style={{ marginBottom: 6 }}>Harcama trendi</div><TrendChart data={hesap.trendData} tlKur={tlKur} /></div>
+              <div className="sip-legend"><span><span className="sip-legend-dot" style={{ background: '#1D9E75' }} />Tahsilat</span><span><span className="sip-legend-dot" style={{ background: '#378ADD' }} />İade kredisi</span></div>
+              {sonOdemeler.map((o, i) => {
+                const isTah = o.tip !== 'mahsup' && o.tip !== 'iade_kredisi';
                 return (
-                  <div key={i} className="sip-mini-item" onClick={() => { setSelectedItem({ ...f, i, tip: 'islem' }); setLandDetail('islem-detay'); }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 500 }}>{f.no || 'Fatura'} — ${fmt(f.tutar)}</div>
-                      <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{fmtD(f.tarih)}</div>
+                  <div key={i}>
+                    <div className={`sip-pay-item${isTah ? '' : ' sip-pay-iade'}`} onClick={() => toggleOdeme(i)}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{fmtDLong(o.tarih)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--sip-text-muted)' }}>{o.yontem || '—'}{o.aciklama ? ` · ${o.aciklama}` : ''}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: isTah ? '#1D9E75' : '#378ADD' }}>${fmt(o.tutar)}</div>
+                        {tlKur > 0 && <div style={{ fontSize: 10, color: 'var(--sip-text-faint)' }}>≈₺{fmt(o.tutar * tlKur, 0)}</div>}
+                      </div>
                     </div>
-                    {f.gecikmeGun > 0 && <span style={{ fontSize: 10, fontWeight: 500, color: gecRenk }}>{f.gecikmeGun}g</span>}
+                    {openOdemeId === i && Array.isArray(o.eslesmeler) && o.eslesmeler.length > 0 && (
+                      <div className={`sip-pay-detail ${isTah ? 'sip-pay-tah' : 'sip-pay-iade-d'}`}>
+                        <div style={{ fontWeight: 500, marginBottom: 4 }}>Kapattığı faturalar:</div>
+                        {o.eslesmeler.map((e, ei) => (<div key={ei} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{e.faturaNo}</span><span style={{ fontWeight: 500 }}>${fmt(e.kapatilan)}</span></div>))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
+              {sonOdemeler.length === 0 && <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '12px 0' }}>{t.odeme_yok || 'Ödeme kaydı bulunmuyor'}</div>}
             </>
-          ) : landDetail === 'islem-detay' && selectedItem ? (
+          )}
+
+          {/* ── LOG TAB ── */}
+          {mainTab === 'log' && (
             <>
-              <div className="sip-section-title">
-                <span>{t.islem_detay || 'İşlem detayı'}</span>
-                <button style={{ fontSize: 11, color: 'var(--sip-accent)', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', fontWeight: 500 }}
-                  onClick={() => setLandDetail('islem-liste')}>← {t.son_islemler || 'İşlemler'}</button>
-              </div>
-              <div style={{ background: 'var(--sip-bg)', border: '1px solid var(--sip-border-light)', borderRadius: 'var(--sip-r-sm)', padding: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <span style={{ fontSize: 16, fontWeight: 600 }}>${fmt(selectedItem.tutar)}</span>
-                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'var(--sip-accent-bg)', color: 'var(--sip-accent)' }}>Fatura</span>
+              {okunmamisSayisi > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--sip-danger)' }}>{okunmamisSayisi} okunmamış bildirim</span>
+                  <button className="sip-export-btn" style={{ flex: 'none', padding: '4px 12px' }} onClick={() => { bildirimOkundu(bildirimler.filter(b => !b.okundu).map(b => b.id)); }}>Tümünü okundu işaretle</button>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--sip-text-muted)', lineHeight: 1.8 }}>
-                  {selectedItem.no && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Fatura no</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{selectedItem.no}</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tarih</span><span style={{ color: 'var(--sip-text)', fontWeight: 500 }}>{fmtDLong(selectedItem.tarih)}</span></div>
-                  {selectedItem.gecikmeGun > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gecikme</span><span style={{ color: selectedItem.gecikmeGun >= 30 ? 'var(--sip-danger)' : selectedItem.gecikmeGun >= 7 ? 'var(--sip-orange)' : 'var(--sip-accent)', fontWeight: 500 }}>{selectedItem.gecikmeGun} gün</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Kalan</span><span style={{ color: 'var(--sip-danger)', fontWeight: 500 }}>${fmt(selectedItem.kalan || 0)}</span></div>
-                </div>
-              </div>
-              {Array.isArray(selectedItem.kalemler) && selectedItem.kalemler.length > 0 && (
-                <>
-                  <div className="sip-section-title" style={{ marginTop: 10 }}><span>Kalemler</span></div>
-                  {selectedItem.kalemler.map((k, ki) => (
-                    <div key={ki} className="sip-mini-item">
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 500 }}>{k.urunAd || k.urunKod || '—'}</div>
-                        <div style={{ fontSize: 10, color: 'var(--sip-text-muted)' }}>{k.urunKod} — {k.adet}x</div>
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 500 }}>${fmt(k.toplam)}</span>
-                    </div>
-                  ))}
-                </>
               )}
+              <div className="sip-timeline">
+                {timeline.map((item, i) => (<div key={i} className="sip-tl-item"><div className={`sip-tl-dot ${item.dotCls}`} />{i < timeline.length - 1 && <div className="sip-tl-line" />}<div className="sip-tl-date">{fmtDLong(item.tarih)}</div><div className={`sip-tl-msg ${item.msgCls}`}>{item.msg}</div>{item.sub && <div className="sip-tl-sub">{item.sub}</div>}</div>))}
+                {timeline.length === 0 && <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '12px 0' }}>Henüz kayıt bulunmuyor</div>}
+              </div>
             </>
-          ) : null
-        ) : (
-          rightView === 'dashboard' ? (
-            <DashboardView t={t} bildirimler={bildirimler} sonOdemeler={sonOdemeler}
-              okunmamisSayisi={okunmamisSayisi} hesap={hesap} tlKur={tlKur}
-              onViewBildirimler={() => setRightView('bildirimler')} onViewOdemeler={() => setRightView('odemeler')} />
-          ) : rightView === 'bildirimler' ? (
-            <BildirimlerView t={t} bildirimler={bildirimler} okunmamisSayisi={okunmamisSayisi}
-              onOkundu={bildirimOkundu} onTumunuOkundu={tumunuOkundu} onBack={() => setRightView('dashboard')} />
-          ) : (
-            <OdemelerView t={t} sonOdemeler={sonOdemeler} tlKur={tlKur} onBack={() => setRightView('dashboard')} />
-          )
-        )}
+          )}
+        </div>
+
+        {/* ══ SAĞ PANEL (Desktop): Son ödemeler + Son işlemler ══ */}
+        <div className="sip-panel">
+          <div className="sip-right-card">
+            <div className="sip-section-title"><span>{t.son_odemeler || 'Son ödemeler'}</span></div>
+            {sonOdemeler.length === 0 ? <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '8px 0' }}>{t.odeme_yok || 'Ödeme kaydı yok'}</div>
+              : sonOdemeler.slice().reverse().slice(0, 8).map((o, i) => {
+                const isTah = o.tip !== 'mahsup' && o.tip !== 'iade_kredisi';
+                return (<div key={i} className={`sip-odeme ${o.tip === 'mahsup' ? 'sip-odeme-mahsup' : ''}`}><div><div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span className="sip-legend-dot" style={{ width: 6, height: 6, background: isTah ? '#1D9E75' : '#378ADD' }} /><span className="sip-odeme-tarih-lg">{fmtDLong(o.tarih)}</span></div><div className="sip-odeme-yontem-lg">{o.yontem || '—'}</div></div><div className="sip-odeme-tutar-lg" style={{ color: isTah ? '#1D9E75' : '#378ADD' }}>${fmt(o.tutar)}{tlKur > 0 && <div style={{ fontSize: 10, color: 'var(--sip-text-faint)' }}>≈₺{fmt(o.tutar * tlKur, 0)}</div>}</div></div>);
+              })
+            }
+          </div>
+          <div className="sip-right-card">
+            <div className="sip-section-title"><span>{t.son_islemler || 'Son işlemler'}</span></div>
+            {timeline.slice(0, 8).map((item, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < 7 ? '1px solid var(--sip-border-faint)' : 'none', fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="sip-legend-dot" style={{ width: 6, height: 6, background: item.dotCls.includes('green') ? '#1D9E75' : item.dotCls.includes('blue') ? '#378ADD' : item.dotCls.includes('amber') ? '#EF9F27' : '#534AB7' }} />
+                  <span style={{ fontWeight: 500 }}>{item.msg}</span>
+                </div>
+                <span style={{ color: 'var(--sip-text-muted)', fontSize: 10 }}>{fmtD(item.tarih)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="sip-destek">Sorularınız için: <a href="https://wa.me/905383487516" target="_blank" rel="noopener noreferrer">WhatsApp</a> · <a href="mailto:info@bekilligroup.com">E-posta</a></div>
+        </div>
       </div>
-    </div>
     </>
   );
 }
 
-// ══════════════════════════════════════════════════════
-// Dashboard View (sağ panel default)
-// ══════════════════════════════════════════════════════
-function DashboardView({ t, bildirimler, sonOdemeler, okunmamisSayisi, hesap, tlKur, onViewBildirimler, onViewOdemeler }) {
-  return (
-    <div>
-      {/* Son 5 Bildirim */}
-      <div className="sip-right-card">
-        <div className="sip-section-title" style={{ cursor: 'pointer' }} onClick={onViewBildirimler}>
-          <span>{t.bildirimler} {okunmamisSayisi > 0 && <span style={{ color: 'var(--sip-danger)', fontSize: 11 }}>({okunmamisSayisi} yeni)</span>}</span>
-          <span style={{ fontSize: 11, color: 'var(--sip-accent)' }}>Tümü →</span>
-        </div>
-        {bildirimler.length === 0
-          ? <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '8px 0' }}>{t.bildirim_yok}</div>
-          : bildirimler.slice().reverse().slice(0, 5).map(b => (
-            <div key={b.id} className={`sip-bildirim ${b.okundu ? 'okundu' : 'yeni'}`}>
-              <span className="sip-bildirim-dot" style={{ background: b.okundu ? 'var(--sip-text-faint)' : 'var(--sip-accent)' }} />
-              <span className="sip-bildirim-mesaj">{b.mesaj}</span>
-              <span className="sip-bildirim-tarih">{fmtD(b.tarih)}</span>
-            </div>
-          ))
-        }
-      </div>
-
-      {/* Son 5 Ödeme */}
-      <div className="sip-right-card">
-        <div className="sip-section-title" style={{ cursor: 'pointer' }} onClick={onViewOdemeler}>
-          <span>{t.odemeler}</span>
-          <span style={{ fontSize: 11, color: 'var(--sip-accent)' }}>Tümü →</span>
-        </div>
-        {sonOdemeler.length === 0
-          ? <div style={{ fontSize: 12, color: 'var(--sip-text-faint)', padding: '8px 0' }}>{t.odeme_yok}</div>
-          : sonOdemeler.slice().reverse().slice(0, 5).map((o, i) => (
-            <div key={i} className={`sip-odeme ${o.tip === 'mahsup' ? 'sip-odeme-mahsup' : ''}`}>
-              <div>
-                <div className="sip-odeme-tarih-lg">{fmtDLong(o.tarih)}</div>
-                <div className="sip-odeme-yontem-lg">{o.yontem || '—'}{o.tip === 'mahsup' && <span className="sip-badge sip-badge-hazir" style={{ fontSize: 8, marginLeft: 4 }}>Mahsup</span>}</div>
-              </div>
-              <div className="sip-odeme-tutar-lg">
-                ${fmt(o.tutar)}
-                {tlKur > 0 && <div style={{ fontSize: 10, color: 'var(--sip-text-faint)' }}>≈₺{fmt(o.tutar * tlKur, 0)}</div>}
-              </div>
-            </div>
-          ))
-        }
-      </div>
-
-      {/* Harcama Trendi (6 ay) */}
-      <div className="sip-right-card">
-        <div className="sip-section-title">Harcama Trendi</div>
-        <TrendChart data={hesap.trendData} tlKur={tlKur} />
-      </div>
-
-      {/* İletişim */}
-      <div className="sip-destek">
-        Sorularınız için: <a href="https://wa.me/905383487516" target="_blank" rel="noopener noreferrer">WhatsApp</a> · <a href="mailto:info@bekilligroup.com">E-posta</a>
-      </div>
-    </div>
-  );
-}
-
-// ── Bildirimler Tam Geçmiş ───────────────────────────
-function BildirimlerView({ t, bildirimler, okunmamisSayisi, onOkundu, onTumunuOkundu, onBack }) {
-  return (
-    <div>
-      <div className="sip-panel-title" style={{ display: 'flex', alignItems: 'center' }}>
-        <button className="sip-btn sip-btn-secondary" onClick={onBack} style={{ fontSize: 10, marginRight: 8 }}>← Geri</button>
-        <span style={{ flex: 1 }}>{t.bildirimler}</span>
-        {okunmamisSayisi > 0 && <button className="sip-bildirim-link" onClick={onTumunuOkundu}>{t.tumunu_oku}</button>}
-      </div>
-      {bildirimler.length === 0 ? <div className="sip-empty">{t.bildirim_yok}</div> : (
-        bildirimler.slice().reverse().map(b => (
-          <div key={b.id} className={`sip-bildirim ${b.okundu ? 'okundu' : 'yeni'}`} onClick={() => !b.okundu && onOkundu([b.id])}>
-            <span className="sip-bildirim-dot" style={{ background: b.okundu ? 'var(--sip-text-faint)' : 'var(--sip-accent)' }} />
-            <span className="sip-bildirim-mesaj">{b.mesaj}</span>
-            <span className="sip-bildirim-tarih">{fmtDLong(b.tarih)}</span>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-// ── Ödemeler Tam Geçmiş ──────────────────────────────
-function OdemelerView({ t, sonOdemeler, tlKur, onBack }) {
-  return (
-    <div>
-      <div className="sip-panel-title" style={{ display: 'flex', alignItems: 'center' }}>
-        <button className="sip-btn sip-btn-secondary" onClick={onBack} style={{ fontSize: 10, marginRight: 8 }}>← Geri</button>
-        <span>{t.odemeler}</span>
-      </div>
-      {sonOdemeler.length === 0 ? <div className="sip-empty">{t.odeme_yok}</div> : (
-        sonOdemeler.slice().reverse().map((o, i) => (
-          <div key={i} className={`sip-odeme ${o.tip === 'mahsup' ? 'sip-odeme-mahsup' : ''}`}>
-            <div>
-              <div className="sip-odeme-tarih-lg">{fmtDLong(o.tarih)}</div>
-              <div className="sip-odeme-yontem-lg">{o.yontem || '—'}{o.tip === 'mahsup' && <span className="sip-badge sip-badge-hazir" style={{ fontSize: 8, marginLeft: 4 }}>Mahsup</span>}</div>
-              {Array.isArray(o.eslesmeler) && o.eslesmeler.length > 0 && (
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
-                  {o.eslesmeler.map((e, ei) => <span key={ei} className="sip-esleme">{e.faturaNo}: ${fmt(e.kapatilan)}</span>)}
-                </div>
-              )}
-            </div>
-            <div className="sip-odeme-tutar-lg">
-              ${fmt(o.tutar)}
-              {o.orijinalTutar && o.doviz !== 'USD' && <div style={{ fontSize: 11, color: 'var(--sip-text-muted)' }}>{fmt(o.orijinalTutar)} {o.doviz}</div>}
-              {tlKur > 0 && <div style={{ fontSize: 10, color: 'var(--sip-text-faint)' }}>≈₺{fmt(o.tutar * tlKur, 0)}</div>}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
 
 // ── Fatura Card (TEP: acik + kapanan + iade — tek component) ──
 function FaturaCard({ f, t, tlKur, isOpen, onToggle, tip }) {
