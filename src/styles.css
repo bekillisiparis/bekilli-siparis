@@ -574,8 +574,9 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-2panel { grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); }
   .sip-3panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .sip-kat-panel { display: none; }
-  .sip-panel:nth-child(3) { display: none; }
   .sip-hesabim-subtab { display: none; }
+  .sip-mobile-subtabs { display: none; }
+  .sip-hide-desktop { display: none; }
   .sip-fatura { padding: 6px 10px; margin-bottom: 4px; }
   .sip-fatura-no { font-size: 11px; }
   .sip-fatura-kalan { font-size: 12px; }
