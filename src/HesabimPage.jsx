@@ -388,8 +388,8 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
     return (
       <div className="sip-2panel">
         {/* ── Sol panel: bakiye + hesap hareketleri + son işlemler ── */}
-        <div className="sip-panel" style={{ overflow: isLandscape ? 'hidden' : undefined, display: 'flex', flexDirection: 'column' }}>
-          <div className={`sip-bakiye-hero ${hero.cls}`} style={isLandscape ? { padding: '10px 12px', marginBottom: 6 } : undefined}>
+        <div className="sip-panel" style={{ overflow: isLandscape ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div className={`sip-bakiye-hero ${hero.cls}`} style={isLandscape ? { padding: '10px 12px', marginBottom: 6, flexShrink: 0 } : { flexShrink: 0 }}>
             {isLandscape ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
