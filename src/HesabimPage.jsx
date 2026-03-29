@@ -349,7 +349,7 @@ export default function HesabimPage({ t, hesap, pin, onRefresh }) {
   // ══ PORTRAIT / DESKTOP LAYOUT ══
   return (
     <>
-      <div className="sip-hesabim-subtab" style={{ display: 'flex' }}>
+      <div className="sip-hesabim-subtab">
         <button className={mainTab === 'faturalar' ? 'active' : ''} onClick={() => setMainTab('faturalar')}>{t.faturalar || 'Faturalar'}</button>
         <button className={mainTab === 'odemeler' ? 'active' : ''} onClick={() => setMainTab('odemeler')}>{t.odeme_tahsilat || 'Ödeme & Tahsilat'}</button>
         <button className={mainTab === 'log' ? 'active' : ''} onClick={() => setMainTab('log')} style={{ position: 'relative' }}>Log{okunmamisSayisi > 0 && <span className="sip-notif-dot" style={{ position: 'absolute', top: 6, right: 8 }} />}</button>

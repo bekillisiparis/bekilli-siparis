@@ -584,7 +584,10 @@ body { font-family: var(--sip-font); background: var(--sip-bg-page); color: var(
   .sip-section-title { font-size: 12px; margin-bottom: 6px; }
   .sip-panel-title { font-size: 13px; margin-bottom: 8px; }
 }
-.sip-hesabim-subtab { display: none; }
+.sip-hesabim-subtab { display: flex; border: 1px solid var(--sip-border-light); border-radius: var(--sip-r-sm); overflow: hidden; margin: 0 0 12px; }
+.sip-hesabim-subtab button { flex: 1; text-align: center; font-size: 13px; padding: 10px 0; border: none; background: var(--sip-bg); color: var(--sip-text-muted); font-family: inherit; font-weight: 500; cursor: pointer; transition: all .15s; }
+.sip-hesabim-subtab button:hover { background: var(--sip-bg-subtle); }
+.sip-hesabim-subtab button.active { background: var(--sip-accent); color: #fff; }
 .sip-mini-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin-bottom: 3px; background: var(--sip-bg); border: 0.5px solid var(--sip-border-light); border-radius: var(--sip-r-sm); cursor: pointer; transition: background .12s; }
 .sip-mini-item:hover { background: var(--sip-bg-subtle); }
 .sip-mini-sel { background: var(--sip-accent-bg); border-color: var(--sip-accent); }
